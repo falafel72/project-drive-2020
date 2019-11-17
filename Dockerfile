@@ -29,6 +29,7 @@ RUN apt-get update \
     tmux \
     xdg-utils \
     eog \
+    vim \
  && rm -rf /var/lib/apt/lists/*
 
 # nvidia-container-runtime
