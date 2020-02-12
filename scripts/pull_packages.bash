@@ -5,6 +5,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source $SCRIPT_DIR/identify_environment.bash
 
 cd "$HOME/catkin_ws/src"
+rm CMakeLists.txt
 git clone https://github.com/falafel72/project-drive-2020.git .
 #    cd "$HOME/catkin_ws"
 #    catkin build --no-status
