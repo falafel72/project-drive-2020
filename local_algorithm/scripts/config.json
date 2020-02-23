@@ -1,0 +1,8 @@
+{
+  "radius": [-2,-5,-10,0,10,5,2],
+  "num_steps": 50,
+  "dis_exp": -2,
+  "step_size": 0.1,
+  "dis_threshold": 0.2,
+  "length_exp": -1
+}
