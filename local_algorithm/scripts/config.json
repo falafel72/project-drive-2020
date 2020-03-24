@@ -1,8 +1,12 @@
 {
-  "radius": [-2,-5,-10,0,10,5,2],
+  "radius": [-1.5,-2,-4.5,-10,0,10,4.5,2,1.5],
   "num_steps": 50,
-  "dis_exp": -2,
+  "dis_exp": -1,
   "step_size": 0.1,
   "dis_threshold": 0.2,
-  "length_exp": -1
+  "length_exp": -0.8,
+  "hori_size": 10,
+  "vert_size": 10,
+  "wheel_base": 1.0,
+  "vis_resolution": 0.05
 }

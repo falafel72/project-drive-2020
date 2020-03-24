@@ -20,9 +20,24 @@ class local_alg:
             self.dis_exp = configs['dis_exp']
             self.length_exp = configs['length_exp']
             self.dis_threshold = configs['dis_threshold']
+            self.wheel_base = configs['wheel_base']
         except KeyError as e:
             print("The config file is incomplete, missing "+e.args[0])
             raise e
+        if(('hori_size' in configs) and ('vert_size' in configs)):
+            self.sim_flag = True
+            self.hori_size = configs['hori_size']
+            self.vert_size = configs['vert_size']
+        else:
+            self.sim_flag = False
+        #Translate the radius into steering angles
+        self.angles = []
+        for i in range(len(self.candidate_rs)):
+            if(not self.candidate_rs[i]==0):
+                angle = math.asin(self.wheel_base/2/self.candidate_rs[i])
+            else:
+                angle = 0
+            self.angles.append(angle)
         #Gets the importance array, which gives importance based on
         #how far each point is from the car
         self.length_weights = length_weight(self.num_steps, self.length_exp)
@@ -64,6 +79,15 @@ class local_alg:
         #Points is the list of obstacle points
         num_candidates = len(self.candidate_rs)
         costs = np.zeros(num_candidates)
+        if(self.sim_flag):
+            tmp_points = np.zeros(points.shape)
+            k=0
+            for i in range(points.shape[0]):
+                if((points[i,0]>(-self.hori_size)) and (points[i,0]<self.hori_size)
+                        and (points[i,1]>0) and (points[i,1]<self.vert_size)):
+                    tmp_points[k,:] = points[i,:]
+                    k+=1
+            points = tmp_points[:k,:]
         for i in range(num_candidates):
             #Each path
             for k in range(self.num_steps):
@@ -73,7 +97,7 @@ class local_alg:
                     points[:,1]-self.paths[i,k,1])),self.dis_exp,\
                     self.dis_threshold))\
                     *self.length_weights[k]
-        return [np.argmin(costs), costs]
+        return [self.angles[np.argmin(costs)], np.argmin(costs), costs]
 
 if __name__ == "__main__":
     decider = local_alg('./config.json')

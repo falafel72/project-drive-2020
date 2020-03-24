@@ -8,3 +8,5 @@ install/
 doc/
 data/
 *pyc
+*avi
+*png
