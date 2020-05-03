@@ -29,7 +29,7 @@ def callback_vis(data, IO):
     points.append(cur_points)
     costs.append(cur_costs)
     indices.append(tmp)
-    message = AckermannDrive(steering_angle=angle, speed=0.5)
+    message = AckermannDrive(steering_angle=angle, speed=1)
     IO[1].publish(message)
     #IO[1].publish(AckermannDrive(steering_angle=angle, speed=0.25))
     #for i in range(10):
@@ -98,7 +98,8 @@ def handle(visualize):
     rospy.init_node('local_algorithm')
     decider = local_alg('./config.json')
     decider.generate_paths()
-    announcer = rospy.Publisher('/car_1/command', AckermannDrive, queue_size=2)
+    #announcer = rospy.Publisher('/car_1/command', AckermannDrive, queue_size=2)
+    announcer = rospy.Publisher('/car_1/multiplexer/command', AckermannDrive, queue_size=2)
     if(visualize):
         rospy.Subscriber('/car_1/scan', LaserScan, callback_vis, [decider, announcer, visualize, count])
         rospy.on_shutdown(output_video)
