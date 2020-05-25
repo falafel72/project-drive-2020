@@ -16,8 +16,14 @@ indices=[]
 count=0
 
 def callback(data, IO):
-    angle = IO[0].decide_direction(laser_parser(data))[0]
-    IO[1].publish(AckermannDrive(steering_angle=angle, speed=0.5))
+    IO[2]+=1
+    if(not IO[2]%10==0):
+        return
+    cur_points = laser_parser(data)
+    #tmp is the index of the best path
+    [angle, tmp, cur_costs] = IO[0].decide_direction(cur_points)
+    message = AckermannDrive(steering_angle=angle, speed=1)
+    IO[1].publish(message)
 
 def callback_vis(data, IO):
     IO[2]+=1
@@ -29,7 +35,7 @@ def callback_vis(data, IO):
     points.append(cur_points)
     costs.append(cur_costs)
     indices.append(tmp)
-    message = AckermannDrive(steering_angle=angle, speed=1)
+    message = AckermannDrive(steering_angle=angle, speed=0.4)
     IO[1].publish(message)
     #IO[1].publish(AckermannDrive(steering_angle=angle, speed=0.25))
     #for i in range(10):
@@ -72,7 +78,7 @@ def output_video():
     paths = [prepare_points(path, configs['hori_size'], configs['vert_size'],
                             configs['vis_resolution']) for path in decider.paths]
     #Declare video output
-    video_out = cv2.VideoWriter(video_output, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 10, (w,h))
+    video_out = cv2.VideoWriter(video_output, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 5, (w,h))
     for i in range(len(points)):
         #Note that the dtype should be uint8 for the resulting the video
         #to look as intended
@@ -104,7 +110,7 @@ def handle(visualize):
         rospy.Subscriber('/car_1/scan', LaserScan, callback_vis, [decider, announcer, visualize, count])
         rospy.on_shutdown(output_video)
     else:
-        rospy.Subscriber('/car_1/scan', LaserScan, callback, [decider, announcer])
+        rospy.Subscriber('/car_1/scan', LaserScan, callback, [decider, announcer, count])
     rospy.spin()
     #if(not visualize==-1):
     #    output_video()
