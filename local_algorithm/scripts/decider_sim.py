@@ -7,8 +7,14 @@ import json
 import cv2
 from local_alg import local_alg
 from parser import laser_parser
-from ackermann_msgs.msg import AckermannDrive
+from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import LaserScan
+
+CONTROL_TOPIC = "/drive"
+LASER_TOPIC = "/scan"
+ODOM_TOPIC = "/odom"
+MAP_TOPIC = "/map"
+SPEED = 5
 
 points=[]
 costs=[]
@@ -22,7 +28,11 @@ def callback(data, IO):
     cur_points = laser_parser(data)
     #tmp is the index of the best path
     [angle, tmp, cur_costs] = IO[0].decide_direction(cur_points)
-    message = AckermannDrive(steering_angle=angle, speed=1)
+    message = AckermannDriveStamped()
+    message.header.stamp = rospy.Time.now()
+    message.header.frame_id = "No visulaize"
+    message.drive.steering_angle = angle
+    message.drive.speed = SPEED
     IO[1].publish(message)
 
 def callback_vis(data, IO):
@@ -35,9 +45,13 @@ def callback_vis(data, IO):
     points.append(cur_points)
     costs.append(cur_costs)
     indices.append(tmp)
-    message = AckermannDrive(steering_angle=angle, speed=0.4)
+    message = AckermannDriveStamped()
+    message.header.stamp = rospy.Time.now()
+    message.header.frame_id = "Visulaized"
+    message.drive.steering_angle = angle
+    message.drive.speed = SPEED
     IO[1].publish(message)
-    #IO[1].publish(AckermannDrive(steering_angle=angle, speed=0.25))
+    #IO[1].publish(AckermannDriveStamped(steering_angle=angle, speed=0.25))
     #for i in range(10):
     #    IO[1].publish(message)
     #    time.sleep(0.01)
@@ -104,13 +118,13 @@ def handle(visualize):
     rospy.init_node('local_algorithm')
     decider = local_alg('./config.json')
     decider.generate_paths()
-    #announcer = rospy.Publisher('/car_1/command', AckermannDrive, queue_size=2)
-    announcer = rospy.Publisher('/car_1/multiplexer/command', AckermannDrive, queue_size=2)
+    #announcer = rospy.Publisher('/car_1/command', AckermannDriveStamped, queue_size=2)
+    announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
     if(visualize):
-        rospy.Subscriber('/car_1/scan', LaserScan, callback_vis, [decider, announcer, visualize, count])
+        rospy.Subscriber(LASER_TOPIC, LaserScan, callback_vis, [decider, announcer, visualize, count])
         rospy.on_shutdown(output_video)
     else:
-        rospy.Subscriber('/car_1/scan', LaserScan, callback, [decider, announcer, count])
+        rospy.Subscriber(LASER_TOPIC, LaserScan, callback, [decider, announcer, count])
     rospy.spin()
     #if(not visualize==-1):
     #    output_video()
