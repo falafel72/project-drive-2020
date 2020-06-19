@@ -4,16 +4,19 @@ import random
 
 
 class RRT:
-    def __init__(self, init_x, init_y, map):
+    def __init__(self, init_x, init_y, dest_x,dest_y,map):
         """ RRT Class. Used as a crude path generator. Root of the tree is the 
             initial location of car
 
         Args:
-            init_x (int): the x coordinate of the car 
-            init_y (init): the y coordinate of the car
+            init_x (int): the x coordinate of the car on map
+            init_y (int): the y coordinate of the car on map
+            dest_x (int): the x coordinate of the destination on map
+            dest_y (int): the y coordinate of the destination on map
             map (object:numpy.array): the occupancy grid of the map
         """
         self.root = coord_node(init_x, init_y)
+        self.dest = coord_node(dest_x, dest_y)
         self.map = map
 
     def search_and_connect_nearest_node(self, random_node):
@@ -58,9 +61,10 @@ class RRT:
             return False
         else:
             nearest_node.add_children(random_node)
+            random_node.parent = nearest_node
             return True
 
-    def construct_RRT(self, total_node_num, destination_node):
+    def construct_RRT(self, total_node_num):
         """ Create a RRT that has a certain number of valid nodes. Then add 
             destination _node to the RRT
 
@@ -76,7 +80,7 @@ class RRT:
                 current_node_count += 1
         # Add in destination
         # TODO: is the destination always reachable? What if not reachable?
-        self.search_and_connect_nearest_node(destination_node)
+        self.search_and_connect_nearest_node(self.dest)
 
     def create_random_node(self):
         """ Create a random coord_node with int coordinates. This function does 
@@ -95,6 +99,18 @@ class RRT:
             node = coord_node(x, y)
         return node
 
+    def find_path(self):
+        """ Find a crude path from the root to destination
+
+        Returns:
+            [list]: A path from root to destination
+        """
+        path = []
+        current_node = self.dest
+        while current_node is not None:
+            path.insert(0,current_node)
+            current_node = current_node.parent
+        return path
 
 class coord_node:
     def __init__(self, x, y):
@@ -106,6 +122,7 @@ class coord_node:
         """
         self.coord = (x, y)
         self.children = np.array()
+        self.parent = None
 
     def add_children(self, new_node):
         if isinstance(new_node, coord_node):
