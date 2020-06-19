@@ -11,3 +11,4 @@ data/
 *avi
 *png
 *.keep
+.python-version
