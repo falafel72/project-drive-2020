@@ -1,5 +1,7 @@
 import numpy as np
 import math
+import utils.easy_map as mp
+
 
 class coord_node:
     def __init__(self, x, y):
@@ -9,13 +11,9 @@ class coord_node:
             x (doulbe): x coordinate in occupancy grid
             y (doulbe): y coordinate in occupancy grid
         """
-        self.coord = (x, y)
-        self.children = np.array()
+        self.coord = (x, y, 0.0)
+        self.children = []
         self.parent = None
-
-    def add_children(self, new_node):
-        if isinstance(new_node, coord_node):
-            self.children.append(new_node)
 
     def get_distance(self, other):
         """ Get the Euclidian distance between self and another coord_node
@@ -44,23 +42,36 @@ class coord_node:
         Returns:
             [bool]: True if no obstacle is between self and other; False otherwise
         """
-        slope = (self.coord[1] - other.coord[1]) / (self.coord[0] - other.coord[0])
-        # Find intercept of line. Use average of intercept found with self and other
-        inter = (
-            self.coord[1]
-            - self.coord[0] * slope
-            + other.coord[1]
-            - other.coord[0] * slope
-        ) / 2
+
         """ Check all coordinates in occupancy grid. If any of the cordinates has
             value that is bigger than 0, there is at least one obstacle, so the 
             other node is not reachable. Both the nearest integer coordinate above
             and below the line are checked for obstacles.
         """
-        for i in range(self.coord[0], other.coord[0]):
-            if (
-                map[i][int(i * slope + inter)] > 0
-                or map[i][int(i * slope + inter) + 1] > 0
-            ):
+        start = map.coord_to_grid(self.coord)
+        end = map.coord_to_grid(other.coord)
+        """
+        slope = (other.coord[0] - self.coord[0]) / (other.coord[1] - self.coord[1])
+        # Find intercept of line. Use average of intercept found with self and other
+        inter = (
+            self.coord[0]
+            - self.coord[1] * slope
+            + other.coord[0]
+            - other.coord[1] * slope
+        ) / 2
+        """
+        if float(end[1] - start[1]) == 0:
+            return False
+        slope = float(end[0] - start[0]) / float(end[1] - start[1])
+        inter = (start[0] - start[1] * slope + end[0] - end[1] * slope) / 2.0
+
+        for i in range(start[1], end[1]):
+            try:
+                if (
+                    map.map[i][int(i * slope + inter)] > 0
+                    or map.map[i][int(i * slope + inter) + 1] > 0
+                ):
+                    return False
+            except:
                 return False
         return True

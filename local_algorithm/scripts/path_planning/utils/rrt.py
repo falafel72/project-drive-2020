@@ -1,10 +1,13 @@
 import numpy as np
 import math
 import random
-from node import coord_node
+from .node import coord_node
+from .easy_map import grid_map
+from time import *
+
 
 class RRT:
-    def __init__(self, init_x, init_y, dest_x,dest_y,map):
+    def __init__(self, init_x, init_y, dest_x, dest_y, map):
         """ RRT Class. Used as a crude path generator. Root of the tree is the 
             initial location of car
 
@@ -18,6 +21,7 @@ class RRT:
         self.root = coord_node(init_x, init_y)
         self.dest = coord_node(dest_x, dest_y)
         self.map = map
+        self.size = 0
 
     def search_and_connect_nearest_node(self, random_node):
         """ Search the RRT for the node that is cloestest to random_node in distance. 
@@ -57,10 +61,11 @@ class RRT:
                     nearest_node = checking
             for nodes in checking.children:
                 frontier.append(nodes)
-        if repeated:
+        reachable = nearest_node.is_reachable(random_node, self.map)
+        if repeated or not reachable:
             return False
         else:
-            nearest_node.add_children(random_node)
+            nearest_node.children.append(random_node)
             random_node.parent = nearest_node
             return True
 
@@ -73,14 +78,18 @@ class RRT:
             destination_node (object:coord_node): the destination to be reached
         """
         current_node_count = 0
+        last_node = None
         while current_node_count < total_node_num:
             rand_node = self.create_random_node()
             # Increment node count only with successful addition of node
             if self.search_and_connect_nearest_node(rand_node):
                 current_node_count += 1
+                self.size += 1
+                last_node = rand_node
         # Add in destination
         # TODO: is the destination always reachable? What if not reachable?
-        self.search_and_connect_nearest_node(self.dest)
+        # self.search_and_connect_nearest_node(self.dest)
+        self.dest.parent = last_node
 
     def create_random_node(self):
         """ Create a random coord_node with int coordinates. This function does 
@@ -95,8 +104,9 @@ class RRT:
         while val != 0:
             x = random.uniform(0, self.map.shape[0])
             y = random.uniform(0, self.map.shape[1])
-            val = self.map[int(x)][int(y)]
-            node = coord_node(x, y)
+            val = self.map.map[int(x)][int(y)]
+            coord = self.map.grid_to_coord((x, y))
+            node = coord_node(coord[0], coord[1])
         return node
 
     def find_path(self):
@@ -108,7 +118,6 @@ class RRT:
         path = []
         current_node = self.dest
         while current_node is not None:
-            path.insert(0,current_node)
+            path.insert(0, current_node.coord)
             current_node = current_node.parent
         return path
-
