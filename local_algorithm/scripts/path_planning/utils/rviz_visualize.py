@@ -4,7 +4,8 @@ from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
-def create_arrow(frame_id, start, end, id,name_space):
+
+def create_arrow(frame_id, start, end, id, name_space):
     """ Create one arrow marker for rviz
 
     Args:
@@ -23,12 +24,12 @@ def create_arrow(frame_id, start, end, id,name_space):
     # action number 0 is add/modify a marker
     arrow.action = 0
     # tpye number 0 is arrow markers
-    arrow.type = 0 
+    arrow.type = 0
     arrow.ns = name_space
     arrow.id = id
     # Arrow marker requires Point object to specify staring and ending points
-    start_point = Point(start[0],start[1],start[2])
-    end_point = Point(end[0],end[1],end[2])
+    start_point = Point(start[0], start[1], start[2])
+    end_point = Point(end[0], end[1], end[2])
     arrow.points = [start_point, end_point]
     # NOTE: Currently hard-coded properties of arrow
     arrow.scale.x = 0.05
@@ -38,9 +39,10 @@ def create_arrow(frame_id, start, end, id,name_space):
     arrow.color.r = 0.0
     arrow.color.g = 0.0
     arrow.color.b = 1.0
-    return arrow 
+    return arrow
 
-def create_sphere(frame_id, coord, id,name_space):
+
+def create_sphere(frame_id, coord, id, name_space):
     """ Create one sphere marker for rviz
 
     Args:
@@ -76,7 +78,7 @@ def create_sphere(frame_id, coord, id,name_space):
     sphere.color.r = 1.0
     sphere.color.g = 0.0
     sphere.color.b = 0.0
-    return sphere 
+    return sphere
 
 
 def visualize_path(frame_id, path):
@@ -95,20 +97,23 @@ def visualize_path(frame_id, path):
     """
     vis_path = []
     # add the first waypoint for easier looping of both path and waypoints
-    origin = create_sphere(frame_id,path[0],0)
+    origin = create_sphere(frame_id, path[0], 0, "waypoint")
     wp = [origin]
-    for wp_index in range(1,len(path)):
+    for wp_index in range(1, len(path)):
         # paths are drawn between every two contiguous waypoints
-        new_path = create_arrow(frame_id,path[wp_index-1],path[wp_index],wp_index-1,"path")
-        new_wp = create_sphere(frame_id, path[wp_index],wp_index,"waypoint")
+        new_path = create_arrow(
+            frame_id, path[wp_index - 1], path[wp_index], wp_index - 1, "path"
+        )
+        new_wp = create_sphere(frame_id, path[wp_index], wp_index, "waypoint")
         vis_path.append(new_path)
         wp.append(new_wp)
-    vis_path.append(create_arrow(frame_id,path[-1],path[0],len(path)))
+    # vis_path.append(create_arrow(frame_id,path[-1],path[0],len(path),"path"))
     # combine both path and waypoint together for display
     vis_path.extend(wp)
     return MarkerArray(vis_path)
 
-def visualize_wall(frame_id,wall):
+
+def visualize_wall(frame_id, wall):
     """ Visualize the imaginary wall that is built on the grid map. The walls are
         connected cells on the grid map, but the approximated coordinate points 
         are used for display the wall, so the wall may appear to be segmented. 
@@ -123,12 +128,13 @@ def visualize_wall(frame_id,wall):
         displayed in rviz
     """
     wall_list = []
-    for wp_index in range(0,len(wall)):
-        new_wall = create_sphere(frame_id,wall[wp_index],wp_index, "wall")
+    for wp_index in range(0, len(wall)):
+        new_wall = create_sphere(frame_id, wall[wp_index], wp_index, "wall")
         wall_list.append(new_wall)
     return MarkerArray(wall_list)
 
-def visualize(markers,topic_name):
+
+def visualize(markers, topic_name):
     """ General rviz visualization funciton. Shows every marker in the given 
         marker array.
         This function assumes that exactly one node has already been initialized.
@@ -139,7 +145,7 @@ def visualize(markers,topic_name):
         topic_name (string): topic name of the marker array to be published
     """
     markerPub = rospy.Publisher(topic_name, MarkerArray, queue_size=10)
-    rate = rospy.Rate(10) # 10hz
+    rate = rospy.Rate(10)  # 10hz
     while not rospy.is_shutdown():
         markerPub.publish(markers)
         rate.sleep()
