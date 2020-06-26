@@ -1,5 +1,5 @@
 import numpy as np
-
+from sklearn.neighbors import KDTree
 
 class grid_map:
     def __init__(self):
@@ -102,3 +102,60 @@ class grid_map:
         print("init_pose:", self.car_init_pose)
         print("resolution:", self.map_resolution)
         print("map_origin:", self.map_origin)
+
+    def is_reachable_occ(self,origin,target):
+        """ Check if two points on the occupancy grid are in reach of each other
+            given the constraint of the map. 
+
+        Args:
+            origin (tuple): coordinate of a point on the occupancy grid
+            target (tuple): coordinate of a point on the occupancy grid
+
+        Returns:
+            [bool]: True if no obstacle is between self and other; False otherwise
+        """
+
+        # Check for vertical lines with indefinate slope
+        if target[1] == origin[1]:
+            for i in range(origin[0],target[0]):
+                try:
+                    if (
+                        map.map[i][origin[1]] > 0
+                    ):
+                        return False
+                except:
+                    return False
+            return True
+        slope = float(target[0] - origin[0]) / float(target[1] - origin[1])
+        # Take average of intersection calculated using origin and target
+        inter = (origin[0] - origin[1] * slope + target[0] - target[1] * slope) / 2.0
+        """ Check all coordinates in occupancy grid. If any of the cordinates has
+            value that is bigger than 0, there is at least one obstacle, so the 
+            other node is not reachable. Both the nearest integer coordinate above
+            and below the line are checked for obstacles.
+        """
+        for i in range(origin[1], target[1]):
+            try:
+                if (
+                    map.map[i][int(i * slope + inter)] > 0
+                    or map.map[i][int(i * slope + inter) + 1] > 0
+                ):
+                    return False
+            except:
+                return False
+        return True
+
+    def is_reachable_coord(self,origin,target):
+        """ Check if two points are reachable using the global coordinate of two 
+            points. Points are converted to occupancy grid coordinates
+
+        Args:
+            origin (tuple): coordinate of the origin point
+            target (tuple): coordinate of the target point
+
+        Returns:
+            [bool]: True if no obstacle is between self and other; False otherwise
+        """      
+        start = self.coord_to_grid(origin)
+        end = self.coord_to_grid(target)
+        return self.is_reachable_occ(start,end)
