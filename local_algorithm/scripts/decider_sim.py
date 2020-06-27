@@ -12,12 +12,14 @@ from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
+from std_msgs.msg import *
 
 CONFIG_FILE = "./config.json"
 CONTROL_TOPIC = "/drive"
 LASER_TOPIC = "/scan"
 ODOM_TOPIC = "/odom"
 MAP_TOPIC = "/map"
+PATH_TOPIC = "/green_path"
 MAX_SPEED = 20
 ACCEL = 15
 
@@ -56,6 +58,7 @@ def callback(data, IO):
     else:
         message.drive.speed = math.sqrt(abs(configs["radius"][index])*ACCEL)
     IO[1].publish(message)
+    publish_points(IO[0].paths[index,:,:], IO[4])
 
 """
     The callback for the /scan channel.
@@ -87,6 +90,27 @@ def callback_vis(data, IO):
     else:
         message.drive.speed = math.sqrt(abs(configs["radius"][index])*ACCEL)
     IO[1].publish(message)
+    publish_points(IO[0].paths[index,:,:], IO[4])
+
+"""
+    Export the points on the chosen path
+    by publishing them to a chosen topic
+"""
+def publish_points(points, publisher):
+    dims = [MultiArrayDimension(), MultiArrayDimension()]
+    dims[0].label = "point_index"
+    dims[0].size = points.shape[0]
+    dims[0].stride = dims[0].size*2
+    dims[1].label = "x_y"
+    dims[1].size = 2
+    dims[1].stride = 2
+    layout = MultiArrayLayout()
+    layout.dim = dims
+    layout.data_offset = 0
+    msg = Float32MultiArray()
+    msg.layout = layout
+    msg.data = np.reshape(points.astype('float32'), -1)
+    publisher.publish(msg)
 
 """
     Translate point locations to pixel locations
@@ -189,16 +213,17 @@ def handle(visualize):
     decider.generate_paths()
     #announcer = rospy.Publisher('/car_1/command', AckermannDriveStamped, queue_size=2)
     announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
+    point_export = rospy.Publisher(PATH_TOPIC, Float32MultiArray, queue_size=2)
     if(visualize):
         visualize = 0
-        rospy.Subscriber(LASER_TOPIC, LaserScan, callback_vis, [decider, announcer, visualize, newest_pos])
+        rospy.Subscriber(LASER_TOPIC, LaserScan, callback_vis, [decider, announcer, visualize, newest_pos, point_export])
         #Subscribe to the odom topic and save the newest position
         #whenever one is published
         rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, newest_pos)
         rospy.on_shutdown(output_video)
     else:
         count = 0
-        rospy.Subscriber(LASER_TOPIC, LaserScan, callback, [decider, announcer, count, newest_pos])
+        rospy.Subscriber(LASER_TOPIC, LaserScan, callback, [decider, announcer, count, newest_pos, point_export])
         rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, newest_pos)
     rospy.spin()
     #if(not visualize==-1):
