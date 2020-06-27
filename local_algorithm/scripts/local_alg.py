@@ -102,6 +102,8 @@ class local_alg:
     #Transforms the point to a coordinate based
     #on the current position
     #position=[x,y,rotation about z axis]
+    #The rotation is in radians, counter-clockwise
+    #when viewed from above.
     def transform_to_local(self, point, position):
         point = np.copy(point)
         #Translation
@@ -151,15 +153,18 @@ class local_alg:
                 if(distance<1):
                     distance=1
                 costs[i] += ((self.paths[i]-relative_waypoint)**2).sum(axis=1).min()*self.waypoint_weights[self.cur_waypoint]/distance
-        #for i in range(num_candidates):
-        #    #Each path
-        #    for k in range(self.num_steps):
-        #        #Each point in the path
-        #        costs[i] += sum(distance_score(np.sqrt(np.square(\
-        #            points[:,0]-self.paths[i,k,0])+np.square(\
-        #            points[:,1]-self.paths[i,k,1])),self.dis_exp,\
-        #            self.dis_threshold))\
-        #            *self.length_weights[k]*0.2
+        else:
+            #Currently, the laser scans are not considered at all
+            #when running in waypoint mode. This is temporary.
+            for i in range(num_candidates):
+                #Each path
+                for k in range(self.num_steps):
+                    #Each point in the path
+                    costs[i] += sum(distance_score(np.sqrt(np.square(\
+                        points[:,0]-self.paths[i,k,0])+np.square(\
+                        points[:,1]-self.paths[i,k,1])),self.dis_exp,\
+                        self.dis_threshold))\
+                        *self.length_weights[k]*0.2
         #Return the relative waypoint for visualization.
         #This is still returned when visualization is not on.
         #Not the most elegant design here
