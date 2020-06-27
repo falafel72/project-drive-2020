@@ -18,8 +18,8 @@ CONTROL_TOPIC = "/drive"
 LASER_TOPIC = "/scan"
 ODOM_TOPIC = "/odom"
 MAP_TOPIC = "/map"
-MAX_SPEED = 8
-ACCEL = 7
+MAX_SPEED = 20
+ACCEL = 15
 
 points=[]
 relative_waypoints=[]
@@ -33,6 +33,10 @@ config_file = open(CONFIG_FILE)
 configs = json.load(config_file)
 config_file.close()
 
+"""
+    Same as callback_vis, but does not
+    save points for visualization
+"""
 def callback(data, IO):
     IO[2]+=1
     if(not IO[2]%10==0):
@@ -53,6 +57,14 @@ def callback(data, IO):
         message.drive.speed = math.sqrt(abs(configs["radius"][index])*ACCEL)
     IO[1].publish(message)
 
+"""
+    The callback for the /scan channel.
+    data contains the laser scan sent by ROS,
+    and IO contains extra arguments
+    This calls local_alg and publishes
+    the desired steering angle and speed to /drive
+    Saves the laser scan and waypoints
+"""
 def callback_vis(data, IO):
     IO[2]+=1
     if(not IO[2]%10==0):
@@ -75,11 +87,12 @@ def callback_vis(data, IO):
     else:
         message.drive.speed = math.sqrt(abs(configs["radius"][index])*ACCEL)
     IO[1].publish(message)
-    #IO[1].publish(AckermannDriveStamped(steering_angle=angle, speed=0.25))
-    #for i in range(10):
-    #    IO[1].publish(message)
-    #    time.sleep(0.01)
 
+"""
+    Translate point locations to pixel locations
+    This is called for output_video,
+    to translate the points into the visualization
+"""
 def prepare_points(points, hori_size, vert_size, vis_resolution):
     tmp_points = np.zeros(points.shape)
     k = 0
@@ -98,6 +111,12 @@ def prepare_points(points, hori_size, vert_size, vis_resolution):
     points[:,1] = h-points[:,1]-1
     return points
 
+"""
+    Function that is called after halting,
+    when the visualize option is given.
+    Saves the laser scan points and any saved
+    waypoints to a video output.
+"""
 def output_video():
     print('Video function')
     config_file = './config.json'
@@ -115,6 +134,7 @@ def output_video():
                             configs['vis_resolution']) for path in decider.paths]
     #Declare video output
     video_out = cv2.VideoWriter(video_output, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 10, (w,h))
+    flag = (len(relative_waypoints)>0)
     for i in range(len(points)):
         #Note that the dtype should be uint8 for the resulting the video
         #to look as intended
@@ -132,30 +152,22 @@ def output_video():
                 #frame[paths[k][:,1],paths[k][:,0],[0,2]] = 0
                 frame[paths[k][:,1],paths[k][:,0],0] = 0
                 frame[paths[k][:,1],paths[k][:,0],2] = 0
-        #Plot the waypoints
-        #waypoint_x = relative_waypoints[i][0]
-        #waypoint_y = relative_waypoints[i][1]
-        #if((waypoint_x > (-configs['hori_size'])) and
-        #        (waypoint_x < configs['hori_size']) and
-        #        (waypoint_y > 0) and (waypoint_y < configs['vert_size'])):
-        #    waypoint_x = configs['hori_size'] - waypoint_x
-        #    waypoint_x/=configs['vis_resolution']
-        #    waypoint_y/=configs['vis_resolution']
-        #    waypoint_x = int(waypoint_x)
-        #    waypoint_y = int(waypoint_y)
-        #    frame[waypoint_y,waypoint_x,1] = 0
-        #else:
-        #    print('Not in frame')
-        #    print('('+str(waypoint_x)+','+str(waypoint_y)+')')
+        #If any waypoints are present, plot them
+        if(flag):
+            waypoint = np.zeros((1,2))
+            waypoint[0,:] = relative_waypoints[i]
+            waypoint = prepare_points(waypoint, configs['hori_size'], configs['vert_size'], configs['vis_resolution'])
+            if(waypoint.shape[0]==1):
+                frame[waypoint[0,1],waypoint[0,0],1] = 0
         #Actually output the frame
-        waypoint = np.zeros((1,2))
-        waypoint[0,:] = relative_waypoints[i]
-        waypoint = prepare_points(waypoint, configs['hori_size'], configs['vert_size'], configs['vis_resolution'])
-        if(waypoint.shape[0]==1):
-            frame[waypoint[0,1],waypoint[0,0],1] = 0
         video_out.write(frame)
     video_out.release()
 
+"""
+    Callback to save the newest position and rotation
+    published in /odom to newest_pos.
+    newest_pos = [x, y, rotation about z axis]
+"""
 def save_odom(data, newest_pos):
     newest_pos[0] = data.pose.pose.position.x
     newest_pos[1] = data.pose.pose.position.y
@@ -166,6 +178,11 @@ def save_odom(data, newest_pos):
             quaternion.z, quaternion.w]
     newest_pos[2] = euler_from_quaternion(quaternion)[2]
 
+"""
+    Called once at the beginning
+    To initialize the different publishers
+    and subscribers
+"""
 def handle(visualize):
     rospy.init_node('local_algorithm')
     decider = local_alg('./config.json')
