@@ -13,6 +13,8 @@ class local_alg:
             raise ValueError
         config_tmp = open(config_file)
         configs = json.load(config_tmp)
+        config_tmp.close()
+        #Load the config values
         try:
             self.candidate_rs = configs['radius']
             self.num_steps = configs['num_steps']
@@ -30,6 +32,28 @@ class local_alg:
             self.vert_size = configs['vert_size']
         else:
             self.sim_flag = False
+        #Load the navigation waypoints if available
+        if(('waypoints' in configs) and ('waypoint_weights' in configs)):
+            print('Waypoint navigation')
+            self.navi_mode = True
+            self.waypoints = np.asarray(configs['waypoints'])
+            self.waypoints = self.waypoints.astype('float64')
+            self.waypoint_weights = np.asarray(configs['waypoint_weights'])
+            #The distance at which to switch to the next waypoint
+            #May also include distance switching
+            self.next_thresh = np.asarray(configs['thresholds'])
+            self.cur_waypoint = 0
+            self.map_orig = np.asarray(configs['map_orig'])
+            self.resolution = configs['map_resolution']
+            for i in range(self.waypoints.shape[0]):
+                #tmp = self.waypoints[i,0]
+                #self.waypoints[i,0] = self.waypoints[i,1]
+                #self.waypoints[i,1] = tmp
+                self.waypoints[i,:] *= self.resolution
+                self.waypoints[i,:] += self.map_orig
+            print(self.waypoints)
+        else:
+            self.navi_mode = False
         #Translate the radius into steering angles
         self.angles = []
         for i in range(len(self.candidate_rs)):
@@ -75,29 +99,72 @@ class local_alg:
                 self.paths[i,k,0] = center + math.cos(cur_angle)*cur_radius
                 self.paths[i,k,1] = math.sin(cur_angle)*cur_radius
 
-    def decide_direction(self, points):
+    #Transforms the point to a coordinate based
+    #on the current position
+    #position=[x,y,rotation about z axis]
+    def transform_to_local(self, point, position):
+        point = np.copy(point)
+        #Translation
+        point[0] -= position[0]
+        point[1] -= position[1]
+        #Rotate clockwise by angle of position[2]
+        rotation_matrix = np.zeros((2,2))
+        rotation_matrix[0,0] = math.cos(position[2])
+        rotation_matrix[0,1] = math.sin(position[2])
+        rotation_matrix[1,0] = -rotation_matrix[0,1]
+        rotation_matrix[1,1] = rotation_matrix[0,0]
+        point = rotation_matrix.dot(point)
+        tmp = point[0]
+        point[0] = point[1]
+        point[1] = tmp
+        return point
+
+    def decide_direction(self, points, position):
         #Points is the list of obstacle points
         num_candidates = len(self.candidate_rs)
         costs = np.zeros(num_candidates)
         if(self.sim_flag):
             tmp_points = np.zeros(points.shape)
             k=0
+            #Log points for visualization
             for i in range(points.shape[0]):
                 if((points[i,0]>(-self.hori_size)) and (points[i,0]<self.hori_size)
                         and (points[i,1]>0) and (points[i,1]<self.vert_size)):
                     tmp_points[k,:] = points[i,:]
                     k+=1
             points = tmp_points[:k,:]
-        for i in range(num_candidates):
-            #Each path
-            for k in range(self.num_steps):
-                #Each point in the path
-                costs[i] += sum(distance_score(np.sqrt(np.square(\
-                    points[:,0]-self.paths[i,k,0])+np.square(\
-                    points[:,1]-self.paths[i,k,1])),self.dis_exp,\
-                    self.dis_threshold))\
-                    *self.length_weights[k]
-        return [self.angles[np.argmin(costs)], np.argmin(costs), costs]
+        if(self.navi_mode):
+            #Check if the current waypoint is reached
+            #switch to next waypoint if necessary
+            relative_waypoint = self.transform_to_local(self.waypoints[self.cur_waypoint], position)
+            distance = np.linalg.norm(relative_waypoint, ord=2)
+            if(distance<self.next_thresh[self.cur_waypoint]):
+                print('Current waypoint: '+str(self.cur_waypoint))
+                self.cur_waypoint += 1
+                if(self.cur_waypoint==len(self.waypoints)):
+                    self.cur_waypoint = 0
+                relative_waypoint = self.transform_to_local(self.waypoints[self.cur_waypoint], position)
+                distance = np.linalg.norm(relative_waypoint, ord=2)
+            #Add costs based on minimum distance of
+            #each candidate to the next waypoint
+            for i in range(num_candidates):
+                if(distance<1):
+                    distance=1
+                costs[i] += ((self.paths[i]-relative_waypoint)**2).sum(axis=1).min()*self.waypoint_weights[self.cur_waypoint]/distance
+        #for i in range(num_candidates):
+        #    #Each path
+        #    for k in range(self.num_steps):
+        #        #Each point in the path
+        #        costs[i] += sum(distance_score(np.sqrt(np.square(\
+        #            points[:,0]-self.paths[i,k,0])+np.square(\
+        #            points[:,1]-self.paths[i,k,1])),self.dis_exp,\
+        #            self.dis_threshold))\
+        #            *self.length_weights[k]*0.2
+        #Return the relative waypoint for visualization.
+        #This is still returned when visualization is not on.
+        #Not the most elegant design here
+        return [self.angles[np.argmin(costs)], np.argmin(costs), costs,
+                relative_waypoint]
 
 if __name__ == "__main__":
     decider = local_alg('./config.json')

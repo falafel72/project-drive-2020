@@ -3,10 +3,20 @@
   "num_steps": 50,
   "dis_exp": -1,
   "step_size": 0.1,
-  "dis_threshold": 0.2,
+  "dis_threshold": 0.05,
   "length_exp": -0.8,
   "hori_size": 10,
   "vert_size": 10,
   "wheel_base": 1.0,
-  "vis_resolution": 0.05
+  "vis_resolution": 0.05,
+  "waypoints": [[193,303], [214,268],
+      [267,250], [306,291], [316,336],
+      [302, 371], [262,406], [211,412],
+      [156,403], [127,374], [134,343], [172,322]],
+  "thresholds": [3,2,1.5,1.5,1.5,1.5,
+  1.5,1.5,1.5,1.5,2,1],
+  "waypoint_weights": [1000,400,400,400,
+  400,400,400,400,400,400,400,400],
+  "map_orig": [-7.801, -16.388],
+  "map_resolution": 0.05
 }
