@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from sklearn.neighbors import KDTree
 
@@ -88,14 +89,16 @@ class grid_map:
     def grid_to_coord(self, grid_rc):
         # grid_rc: 2- tuple, row first, then col
         coord_x = grid_rc[1] * self.map_resolution + self.map_origin[0]
+        coord_x = int(coord_x * 1000)/1000.0
         coord_y = grid_rc[0] * self.map_resolution + self.map_origin[1]
+        coord_y = int(coord_y * 1000)/1000.0
         return (coord_x, coord_y, 0.0)
 
     def coord_to_grid(self, coord):
         # Give an approximate grid coordinate (truncated)
         col = int((coord[0] - self.map_origin[0]) / self.map_resolution)
         row = int((coord[1] - self.map_origin[1]) / self.map_resolution)
-        return (row, col)
+        return [row, col]
 
     def print_map(self):
         print("map size:", len(self.map))
@@ -159,3 +162,21 @@ class grid_map:
         start = self.coord_to_grid(origin)
         end = self.coord_to_grid(target)
         return self.is_reachable_occ(start,end)
+
+    def get_distance(self, coord1,coord2):
+        """ Get distance between two coordinates in real world. Check 
+
+        Args:
+            coord1 (tuple): first coordination
+            coord2 (tuple): second coodination
+
+        Returns:
+            [float]: the distance between the two coordinates; None if distance
+            cannot be calculated 
+        """
+        if (len(coord1) == len(coord2)):
+            sum_sq = 0.0
+            for i in range(len(coord1)):
+                sum_sq += math.pow((coord1[i] - coord2[i]), 2)
+            return math.sqrt(sum_sq)
+        return None 

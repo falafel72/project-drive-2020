@@ -79,13 +79,11 @@ def initial_cycle_builder():
     begin_time = time()
     print("Started building path")
     crude_path = RRT(
-        MASTER_MAP.car_init_pose[0],
-        MASTER_MAP.car_init_pose[1],
-        MASTER_MAP.dest_pose[0],
-        MASTER_MAP.dest_pose[1],
+        MASTER_MAP.car_init_pose,
+        MASTER_MAP.dest_pose,
         MASTER_MAP,
     )
-    crude_path.construct_RRT(1000)
+    crude_path.construct_RRT(20)
     path = crude_path.find_path()
     print("Finished building path")
     end_time = time()

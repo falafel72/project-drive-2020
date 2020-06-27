@@ -1,73 +1,66 @@
 import numpy as np
 import math
 import random
-from .node import coord_node
 from .easy_map import grid_map
 from time import *
+from sklearn.neighbors import KDTree
 
+# Hyperparameters
+SEARCH_RADIUS = 0.3
 
 class RRT:
-    def __init__(self, init_x, init_y, dest_x, dest_y, map):
-        """ RRT Class. Used as a crude path generator. Root of the tree is the 
-            initial location of car
+    def __init__(self, origin, dest, occ_grid):
+        """ Constructor of RRT
 
         Args:
-            init_x (double): the x coordinate of the car on map
-            init_y (double): the y coordinate of the car on map
-            dest_x (double): the x coordinate of the destination on map
-            dest_y (double): the y coordinate of the destination on map
-            map (object:numpy.array): the occupancy grid of the map
+            origin (list): Real world coordinate of the car's intial position in (x,y,z)
+            dest (list): Real world coordinate of the car's destination position in (x,y,z)
+            occ_grid (object:numpy.array): an occupancy grid that shows where the obstacles are
         """
-        self.root = coord_node(init_x, init_y)
-        self.dest = coord_node(dest_x, dest_y)
-        self.map = map
-        self.size = 0
+        self.size = 1
+        self.origin = origin
+        self.dest = dest
+        self.occ_grid = occ_grid
+        # The path_tree stores the coordinates that have been added as waypoints
+        # as key of a dictionary. The coordinates' children and parent waypoints
+        # are stored as the value to each key, using the format of:
+        # ([children],parent)
+        self.path_tree = {self.origin:([],())}
+        # A numpy array of coordinates used by KDTree to search
+        self.explored_coords = np.array([list(self.origin)])
+        # KD tree that searches the nearest neighbors of a random coordinate
+        # NOTE: This Tree will be reconstructed every time the explored_coords
+        # updates
+        self.kd_search_tree = KDTree(np.array([self.origin]),leaf_size = 4)
 
-    def search_and_connect_nearest_node(self, random_node):
-        """ Search the RRT for the node that is cloestest to random_node in distance. 
-            There also need to be no obstacle between the random_node and a node in 
-            RRT for it to be added. The function also check for repeated node and
-            makes sure that there is no repeated node in RRT
+    def search_and_connect_nearest_node(self, random_coord):
+        """ Seach the curernt RRT to find several nearest coordinate neighbors of
+            random_coord. Then check if if the random coordinate is reachable by 
+            the nearest coords in RRT. If so, connect the first reachable nearest 
+            coord with the random coord.
+
         Args:
-            random_node (object:coord_node): A node of coord_node type that is 
-            to be checked and possibly added to RRT
-
-        Returns:
-            [bool]: True if the node is successfully added, False if not added
+            random_coord (list): a random coordinate in (x,y,z) list
         """
-        # A queue of node encountered but not searched
-        frontier = []
-        # flag for repeatedly created random node
-        repeated = False
-        # Initial nearest node is set to the root
-        # TODO: this is probably buggy in some way, improve this.
-        nearest_node = self.root
-        # Start the search at the root
-        frontier.append(self.root)
-        while len(frontier) > 0:
-            checking = frontier.pop(0)
-            # Check if the coordinate has already been added to the RRT
-            if (
-                checking.coord[0] == random_node.coord[0]
-                and checking.coord[1] == random_node.coord[1]
-            ):
-                repeated = True
-                break
+        # Append the new valid coord to the explored_coords
+        self.explored_coords = np.append(self.explored_coords,list(random_coord))
+        # Update the KD search Tree
+        self.size += 1
+        self.explored_coords = np.reshape(self.explored_coords,(self.size,3))
+        self.kd_search_tree =  KDTree(np.array([self.origin]))
+        n_index = self.kd_search_tree.query_radius([random_coord],r = SEARCH_RADIUS)
+        for i in n_index[0]:
+            if (self.occ_grid.is_reachable_coord(np.squeeze(self.explored_coords[i]),random_coord)):
+                # Set the parent of the random_coord
+                self.path_tree[random_coord] = ([],np.squeeze(self.explored_coords[i]))
+                # Add random_coord to the nearest neibhbor's children
+                self.path_tree[tuple(np.squeeze(self.explored_coords[i]))][0].append(random_coord)
+                return True
+        self.explored_coords = np.delete(self.explored_coords,range((self.size-1) * 3,self.size * 3))
+        self.kd_search_tree =  KDTree(np.array([self.origin]))
+        self.size -= 1
+        return False 
 
-            if checking.is_reachable(random_node, self.map):
-                if checking.get_distance(random_node) < nearest_node.get_distance(
-                    random_node
-                ):
-                    nearest_node = checking
-            for nodes in checking.children:
-                frontier.append(nodes)
-        reachable = nearest_node.is_reachable(random_node, self.map)
-        if repeated or not reachable:
-            return False
-        else:
-            nearest_node.children.append(random_node)
-            random_node.parent = nearest_node
-            return True
 
     def construct_RRT(self, total_node_num):
         """ Create a RRT that has a certain number of valid nodes. Then add 
@@ -78,46 +71,45 @@ class RRT:
             destination_node (object:coord_node): the destination to be reached
         """
         current_node_count = 0
-        last_node = None
+        last_coord = None
         while current_node_count < total_node_num:
-            rand_node = self.create_random_node()
+            rand_coord = self.create_random_coord()
             # Increment node count only with successful addition of node
-            if self.search_and_connect_nearest_node(rand_node):
+            if self.search_and_connect_nearest_node(rand_coord):
+                print("found")
                 current_node_count += 1
-                self.size += 1
-                last_node = rand_node
-        # Add in destination
-        # TODO: is the destination always reachable? What if not reachable?
-        # self.search_and_connect_nearest_node(self.dest)
-        self.dest.parent = last_node
+                last_coord = rand_coord
+        # Add in destination to the last coords' children
+        # TODO: find a better way. Last node may not always be reachable
+        self.path_tree[last_coord][0].append(self.dest)
 
-    def create_random_node(self):
-        """ Create a random coord_node with int coordinates. This function does 
+    def create_random_coord(self):
+        """ Create a random coordinate with real world coordinates. This function does 
             not check whether the coordinate has been sampled or not
 
         Returns:
-            [object:coord_node]: random coord_node
+            [list]: random coordinate
         """
         val = 100
         node = None
         # Keep generating until the coord is in free space
         while val != 0:
-            x = random.uniform(0, self.map.shape[0])
-            y = random.uniform(0, self.map.shape[1])
-            val = self.map.map[int(x)][int(y)]
-            coord = self.map.grid_to_coord((x, y))
-            node = coord_node(coord[0], coord[1])
-        return node
+            x = random.uniform(0, self.occ_grid.shape[0])
+            y = random.uniform(0, self.occ_grid.shape[1])
+            val = self.occ_grid.map[int(x)][int(y)]
+            coord = self.occ_grid.grid_to_coord((x, y))
+        return coord
 
     def find_path(self):
-        """ Find a crude path from the root to destination
+        """ Find a crude path from the origin to destination
 
         Returns:
-            [list]: A path from root to destination
+            [list]: A path from root to destination in waypoints (x,y,z) lists
         """
         path = []
-        current_node = self.dest
-        while current_node is not None:
-            path.insert(0, current_node.coord)
-            current_node = current_node.parent
-        return path
+        current_coord = self.dest
+        print(self.path_tree)
+        while current_coord != self.origin:
+            path.append(current_coord)
+            current_coord = self.path_tree[current_coord][1]
+        return path 

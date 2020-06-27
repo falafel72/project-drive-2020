@@ -1,5 +1,4 @@
 import rospy
-import utils.node
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
