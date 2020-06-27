@@ -88,11 +88,11 @@ class grid_map:
 
     def grid_to_coord(self, grid_rc):
         # grid_rc: 2- tuple, row first, then col
-        coord_x = grid_rc[1] * self.map_resolution + self.map_origin[0]
+        coord_x = grid_rc[1] * self.map_resolution + self.map_origin[1]
         coord_x = int(coord_x * 1000)/1000.0
-        coord_y = grid_rc[0] * self.map_resolution + self.map_origin[1]
+        coord_y = grid_rc[0] * self.map_resolution + self.map_origin[0]
         coord_y = int(coord_y * 1000)/1000.0
-        return (coord_x, coord_y, 0.0)
+        return (coord_y, coord_x, 0.0)
 
     def coord_to_grid(self, coord):
         # Give an approximate grid coordinate (truncated)
