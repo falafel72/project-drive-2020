@@ -8,6 +8,7 @@ from sklearn.neighbors import KDTree
 # Hyperparameters
 SEARCH_RADIUS = 0.3
 
+
 class RRT:
     def __init__(self, origin, dest, occ_grid):
         """ Constructor of RRT
@@ -25,13 +26,13 @@ class RRT:
         # as key of a dictionary. The coordinates' children and parent waypoints
         # are stored as the value to each key, using the format of:
         # ([children],parent)
-        self.path_tree = {self.origin:([],())}
+        self.path_tree = {self.origin: ([], ())}
         # A numpy array of coordinates used by KDTree to search
         self.explored_coords = np.array([list(self.origin)])
         # KD tree that searches the nearest neighbors of a random coordinate
         # NOTE: This Tree will be reconstructed every time the explored_coords
         # updates
-        self.kd_search_tree = KDTree(np.array([self.origin]),leaf_size = 4)
+        self.kd_search_tree = KDTree(np.array([self.origin]), leaf_size=4)
 
     def search_and_connect_nearest_node(self, random_coord):
         """ Seach the curernt RRT to find several nearest coordinate neighbors of
@@ -43,24 +44,29 @@ class RRT:
             random_coord (list): a random coordinate in (x,y,z) list
         """
         # Append the new valid coord to the explored_coords
-        self.explored_coords = np.append(self.explored_coords,list(random_coord))
+        self.explored_coords = np.append(self.explored_coords, list(random_coord))
         # Update the KD search Tree
         self.size += 1
-        self.explored_coords = np.reshape(self.explored_coords,(self.size,3))
-        self.kd_search_tree =  KDTree(np.array([self.origin]))
-        n_index = self.kd_search_tree.query_radius([random_coord],r = SEARCH_RADIUS)
+        self.explored_coords = np.reshape(self.explored_coords, (self.size, 3))
+        self.kd_search_tree = KDTree(np.array([self.origin]))
+        n_index = self.kd_search_tree.query_radius([random_coord], r=SEARCH_RADIUS)
         for i in n_index[0]:
-            if (self.occ_grid.is_reachable_coord(np.squeeze(self.explored_coords[i]),random_coord)):
+            if self.occ_grid.is_reachable_coord(
+                np.squeeze(self.explored_coords[i]), random_coord
+            ):
                 # Set the parent of the random_coord
-                self.path_tree[random_coord] = ([],np.squeeze(self.explored_coords[i]))
+                self.path_tree[random_coord] = ([], np.squeeze(self.explored_coords[i]))
                 # Add random_coord to the nearest neibhbor's children
-                self.path_tree[tuple(np.squeeze(self.explored_coords[i]))][0].append(random_coord)
+                self.path_tree[tuple(np.squeeze(self.explored_coords[i]))][0].append(
+                    random_coord
+                )
                 return True
-        self.explored_coords = np.delete(self.explored_coords,range((self.size-1) * 3,self.size * 3))
-        self.kd_search_tree =  KDTree(np.array([self.origin]))
+        self.explored_coords = np.delete(
+            self.explored_coords, range((self.size - 1) * 3, self.size * 3)
+        )
+        self.kd_search_tree = KDTree(np.array([self.origin]))
         self.size -= 1
-        return False 
-
+        return False
 
     def construct_RRT(self, total_node_num):
         """ Create a RRT that has a certain number of valid nodes. Then add 
@@ -112,4 +118,4 @@ class RRT:
         while current_coord != self.origin:
             path.append(current_coord)
             current_coord = self.path_tree[current_coord][1]
-        return path 
+        return path

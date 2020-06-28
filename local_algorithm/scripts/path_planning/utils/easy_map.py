@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from sklearn.neighbors import KDTree
+
 
 class grid_map:
     def __init__(self):
@@ -89,9 +89,9 @@ class grid_map:
     def grid_to_coord(self, grid_rc):
         # grid_rc: 2- tuple, row first, then col
         coord_x = grid_rc[1] * self.map_resolution + self.map_origin[1]
-        coord_x = int(coord_x * 1000)/1000.0
+        coord_x = int(coord_x * 1000) / 1000.0
         coord_y = grid_rc[0] * self.map_resolution + self.map_origin[0]
-        coord_y = int(coord_y * 1000)/1000.0
+        coord_y = int(coord_y * 1000) / 1000.0
         return (coord_y, coord_x, 0.0)
 
     def coord_to_grid(self, coord):
@@ -106,7 +106,7 @@ class grid_map:
         print("resolution:", self.map_resolution)
         print("map_origin:", self.map_origin)
 
-    def is_reachable_occ(self,origin,target):
+    def is_reachable_occ(self, origin, target):
         """ Check if two points on the occupancy grid are in reach of each other
             given the constraint of the map. 
 
@@ -120,11 +120,9 @@ class grid_map:
 
         # Check for vertical lines with indefinate slope
         if target[1] == origin[1]:
-            for i in range(origin[0],target[0]):
+            for i in range(origin[0], target[0]):
                 try:
-                    if (
-                        map.map[i][origin[1]] > 0
-                    ):
+                    if map.map[i][origin[1]] > 0:
                         return False
                 except:
                     return False
@@ -148,7 +146,7 @@ class grid_map:
                 return False
         return True
 
-    def is_reachable_coord(self,origin,target):
+    def is_reachable_coord(self, origin, target):
         """ Check if two points are reachable using the global coordinate of two 
             points. Points are converted to occupancy grid coordinates
 
@@ -158,12 +156,12 @@ class grid_map:
 
         Returns:
             [bool]: True if no obstacle is between self and other; False otherwise
-        """      
+        """
         start = self.coord_to_grid(origin)
         end = self.coord_to_grid(target)
-        return self.is_reachable_occ(start,end)
+        return self.is_reachable_occ(start, end)
 
-    def get_distance(self, coord1,coord2):
+    def get_distance(self, coord1, coord2):
         """ Get distance between two coordinates in real world. Check 
 
         Args:
@@ -174,9 +172,9 @@ class grid_map:
             [float]: the distance between the two coordinates; None if distance
             cannot be calculated 
         """
-        if (len(coord1) == len(coord2)):
+        if len(coord1) == len(coord2):
             sum_sq = 0.0
             for i in range(len(coord1)):
                 sum_sq += math.pow((coord1[i] - coord2[i]), 2)
             return math.sqrt(sum_sq)
-        return None 
+        return None
