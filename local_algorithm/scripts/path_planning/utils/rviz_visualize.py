@@ -80,7 +80,7 @@ def create_sphere(frame_id, coord, id, name_space):
     return sphere
 
 
-def visualize_path(frame_id, path):
+def markerize_path(frame_id, path):
     """ Visualize a path. The waypoints are represented by sphere markers, and the
         directed edges between waypoints are represented by arrows. Automatically 
         draws a edge from destination waypoint to initial waypoint to complete a
@@ -112,7 +112,7 @@ def visualize_path(frame_id, path):
     return MarkerArray(vis_path)
 
 
-def visualize_wall(frame_id, wall):
+def markerize_points(frame_id, points):
     """ Visualize the imaginary wall that is built on the grid map. The walls are
         connected cells on the grid map, but the approximated coordinate points 
         are used for display the wall, so the wall may appear to be segmented. 
@@ -126,25 +126,8 @@ def visualize_wall(frame_id, wall):
         [visualization_msgs.msg.MarkerArray]: the array of markers ready to be 
         displayed in rviz
     """
-    wall_list = []
-    for wp_index in range(0, len(wall)):
-        new_wall = create_sphere(frame_id, wall[wp_index], wp_index, "wall")
-        wall_list.append(new_wall)
-    return MarkerArray(wall_list)
-
-
-def visualize(markers, topic_name):
-    """ General rviz visualization funciton. Shows every marker in the given 
-        marker array.
-        This function assumes that exactly one node has already been initialized.
-
-    Args:
-        markers (visualization_msgs.msg.MarkerArray): the array of markers to be
-        shown in rviz.
-        topic_name (string): topic name of the marker array to be published
-    """
-    markerPub = rospy.Publisher(topic_name, MarkerArray, queue_size=10)
-    rate = rospy.Rate(10)  # 10hz
-    while not rospy.is_shutdown():
-        markerPub.publish(markers)
-        rate.sleep()
+    point_markers = []
+    for wp_index in range(0, len(points)):
+        new_wall = create_sphere(frame_id, points[wp_index], wp_index, "wall")
+        point_markers.append(new_wall)
+    return MarkerArray(point_markers)
