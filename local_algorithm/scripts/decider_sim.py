@@ -20,8 +20,6 @@ LASER_TOPIC = "/scan"
 ODOM_TOPIC = "/odom"
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
-MAX_SPEED = 20
-ACCEL = 15
 
 points=[]
 relative_waypoints=[]
@@ -52,11 +50,7 @@ def callback(data, IO):
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "No visualization"
     message.drive.steering_angle = angle
-    #decide on the speed
-    if(angle == 0):
-        message.drive.speed = MAX_SPEED
-    else:
-        message.drive.speed = math.sqrt(abs(configs["radius"][index])*ACCEL)
+    message.drive.speed = configs['speeds'][index]
     IO[1].publish(message)
     publish_points(IO[0].paths[index,:,:], IO[4])
 
@@ -84,11 +78,7 @@ def callback_vis(data, IO):
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "Visualized"
     message.drive.steering_angle = angle
-    #decide on the speed
-    if(angle == 0):
-        message.drive.speed = MAX_SPEED
-    else:
-        message.drive.speed = math.sqrt(abs(configs["radius"][index])*ACCEL)
+    message.drive.speed = configs['speeds'][index]
     IO[1].publish(message)
     publish_points(IO[0].paths[index,:,:], IO[4])
 

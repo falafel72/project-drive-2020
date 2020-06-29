@@ -10,6 +10,7 @@ from visualization_msgs.msg import MarkerArray
 import utils.transform as u_tf
 from utils.easy_map import grid_map
 from utils.rviz_visualize import *
+import json
 
 # The map that is to be used for path planning
 MASTER_MAP = grid_map()
@@ -22,21 +23,12 @@ MAP_FRAME = "/map"
 path_pub = rospy.Publisher("/path_vis", MarkerArray, queue_size=3)
 # Angle choice publisher
 angle_pub = rospy.Publisher("/steer_angle_vis", MarkerArray, queue_size=3)
-# Waypoints
-PATH = [
-    [193, 303],
-    [214, 268],
-    [267, 250],
-    [306, 291],
-    [316, 336],
-    [302, 371],
-    [262, 406],
-    [211, 412],
-    [156, 403],
-    [127, 374],
-    [134, 343],
-    [172, 322],
-]
+# Load waypoints from config
+CONFIG_FILE = "../config.json"
+config_file = open(CONFIG_FILE)
+configs = json.load(config_file)
+config_file.close()
+PATH = configs["waypoints"]
 # pass updated angle path for marker publisher
 angle_path = None
 # Global transformation of the car
