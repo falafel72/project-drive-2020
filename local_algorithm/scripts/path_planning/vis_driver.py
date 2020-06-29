@@ -117,7 +117,6 @@ if __name__ == "__main__":
         if angle_path is not None:
             # initialize angle_points according to size of input points
             angle_points = np.zeros([angle_path.shape[0], angle_path.shape[1] + 1])
-            print(angle_path.shape)
             for i in range(angle_path.shape[0]):
                 angle_points[i] = u_tf.tf_point(
                     angle_path[i],
