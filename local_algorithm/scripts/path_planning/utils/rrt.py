@@ -1,12 +1,14 @@
-import numpy as np
 import math
 import random
-from .easy_map import grid_map
 from time import *
+
+import numpy as np
 from sklearn.neighbors import KDTree
 
+from .easy_map import grid_map
+
 # Hyperparameters
-SEARCH_RADIUS = 0.3
+SEARCH_RADIUS = 2.0
 
 
 class RRT:
@@ -26,9 +28,12 @@ class RRT:
         # as key of a dictionary. The coordinates' children and parent waypoints
         # are stored as the value to each key, using the format of:
         # ([children],parent)
-        self.path_tree = {self.origin: ([], ())}
+        self.path_tree = {self.origin: ([0,0,0])}
         # A numpy array of coordinates used by KDTree to search
         self.explored_coords = np.array([list(self.origin)])
+        # An empty list to hold added points
+        self.added_coords = []
+        self.unconnected_cords = np.copy(self.explored_coords)
         # KD tree that searches the nearest neighbors of a random coordinate
         # NOTE: This Tree will be reconstructed every time the explored_coords
         # updates
@@ -55,12 +60,8 @@ class RRT:
                 np.squeeze(self.explored_coords[i]), random_coord
             ):
                 # Set the parent of the random_coord
-                self.path_tree[random_coord] = ([], np.squeeze(self.explored_coords[i]))
-                # Add random_coord to the nearest neibhbor's children
-                self.path_tree[tuple(np.squeeze(self.explored_coords[i]))][0].append(
-                    random_coord
-                )
-                return True
+                self.path_tree[random_coord].append(np.squeeze(self.explored_coords[i]))
+            return True
         self.explored_coords = np.delete(
             self.explored_coords, range((self.size - 1) * 3, self.size * 3)
         )
@@ -68,43 +69,106 @@ class RRT:
         self.size -= 1
         return False
 
-    def construct_RRT(self, total_node_num):
+    def construct_RRT(self, total_coord_num,quick = True):
         """ Create a RRT that has a certain number of valid nodes. Then add 
             destination _node to the RRT
 
         Args:
             total_node_num (int): total number of nodes in RRT
             destination_node (object:coord_node): the destination to be reached
+            quick (bool, optional): True if construct then search, False if search 
+            then construct
         """
         current_node_count = 0
         last_coord = None
-        while current_node_count < total_node_num:
-            rand_coord = self.create_random_coord()
-            # Increment node count only with successful addition of node
-            if self.search_and_connect_nearest_node(rand_coord):
-                print("found")
-                current_node_count += 1
-                last_coord = rand_coord
+        if not quick:
+            while current_node_count < total_coord_num:
+                rand_coord = self.create_random_coord()
+                # Increment node count only with successful addition of node
+                if self.search_and_connect_nearest_node(rand_coord):
+                    print("found")
+                    current_node_count += 1
+                    last_coord = rand_coord
+        else:
+            self.crude_points_gen(total_coord_num)
+            self.kd_search_tree = KDTree(self.explored_coords, leaf_size=4)
+            frontier = [self.origin]
+            while len(frontier) != 0:
+                checking = frontier.pop(0)
+                if (type(checking) is not tuple):
+                    checking = tuple(checking.tolist())
+                n_index = self.kd_search_tree.query_radius([checking], r=SEARCH_RADIUS)
+                for i in n_index[0]:
+                    if self.occ_grid.is_reachable_coord(
+                        np.squeeze(self.explored_coords[i]), checking
+                    ):
+                        # Set the parent of the random_coord
+                        valid_point = np.squeeze(self.explored_coords[i]).tolist()
+                        if not valid_point in self.added_coords:
+                            self.added_coords.append(valid_point)
+                            self.path_tree[tuple(valid_point)][0] = checking[0]
+                            self.path_tree[tuple(valid_point)][1] = checking[1] 
+                            self.path_tree[tuple(valid_point)][2] = checking[2]                          
+                            frontier.append(tuple(valid_point))
+                            last_coord = checking
         # Add in destination to the last coords' children
         # TODO: find a better way. Last node may not always be reachable
-        self.path_tree[last_coord][0].append(self.dest)
+        self.path_tree[self.dest] = list(checking)
+
+    def crude_points_gen(self, total_coord_num):
+        """ Generate a number of waypoints on in free space
+
+        Args:
+            total_coord_num (int): the number of waypoints to be generated
+        """
+        coord_num = 0
+        while coord_num < total_coord_num:
+            rand_coord = self.create_random_coord()
+            self.explored_coords = np.append(self. explored_coords,rand_coord)
+            self.path_tree[rand_coord] = ([0,0,0])
+            coord_num += 1
+        self.explored_coords = np.reshape(self.explored_coords,[-1,3])
 
     def create_random_coord(self):
-        """ Create a random coordinate with real world coordinates. This function does 
-            not check whether the coordinate has been sampled or not
+        """ Create a random coordinate with real world coordinates. This function 
+            also checks whether the coordinate has been sampled or not by creating
+            sparse points
 
         Returns:
             [list]: random coordinate
         """
         val = 100
+        grid_coord = []
         node = None
+        sur_flag = False
         # Keep generating until the coord is in free space
-        while val != 0:
-            x = random.uniform(0, self.occ_grid.shape[0])
-            y = random.uniform(0, self.occ_grid.shape[1])
-            val = self.occ_grid.map[int(x)][int(y)]
-            coord = self.occ_grid.grid_to_coord((x, y))
+        # TODO: add more weight to underexplored region
+        while val != 0 and not sur_flag:
+            x = random.uniform(0, self.occ_grid.shape[1])
+            y = random.uniform(0, self.occ_grid.shape[0])
+            grid_coord = (int(y),int(x))
+            if not self.check_surrounding((int(y),int(x)),area = 20):
+                continue
+            val = self.occ_grid.map[int(y)][int(x)]
+            coord = self.occ_grid.grid_to_coord((int(x), int(y)))
+        self.occ_grid.map[grid_coord[0]][grid_coord[1]] = 100
         return coord
+
+    def check_surrounding(self,point,area = 5):
+        """ Helper function. Check to make sure the point is not too close to walls or other explored coords
+
+        Args:
+            point (array-like): the point to be checked
+            area (int, optional): Side length of a square area on occupancy grid. Defaults to 5.
+
+        Returns:
+            bool: True if the point is not too close to wall, False otherwise
+        """
+        for i in range(area):
+            for j in range(area):
+                if self.occ_grid.map[point[0]-i][point[1]-j] > 0 or self.occ_grid.map[point[0]+i][point[1]+j] > 0:
+                    return False
+        return True
 
     def find_path(self):
         """ Find a crude path from the origin to destination
@@ -114,8 +178,19 @@ class RRT:
         """
         path = []
         current_coord = self.dest
-        print(self.path_tree)
-        while current_coord != self.origin:
+        print("current",current_coord)
+        print(self.path_tree[tuple(self.dest)])
+        while current_coord != list(self.origin):
             path.append(current_coord)
-            current_coord = self.path_tree[current_coord][1]
+            current_coord = self.path_tree[tuple(current_coord)]
+        return path
+
+    def search_path(self):
+        """ A simple BFS search for the shortest path from origin to dest
+
+        Returns:
+            list: waypoints that composes the path
+        """
+        path = []
+        
         return path

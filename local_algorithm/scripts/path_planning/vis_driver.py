@@ -10,6 +10,7 @@ from visualization_msgs.msg import MarkerArray
 import utils.transform as u_tf
 from utils.easy_map import grid_map
 from utils.rviz_visualize import *
+from utils.rrt import RRT
 
 # The map that is to be used for path planning
 MASTER_MAP = grid_map()
@@ -91,49 +92,59 @@ def angle_vis_callback(data):
     try:
         angle_path = np.squeeze(np.reshape(np.array(data.data), [-1, 2]))
     except:
-        print("unable to shape input array")
-
+        print("unable to shape input array")    
 
 if __name__ == "__main__":
+
+
     # The transformed angle points to be published
     angle_points = []
     rospy.init_node("path_constructor", anonymous=True)
     intial_state_listener()
-    path_vis = []
-    for i in PATH:
-        path_vis.append(MASTER_MAP.grid_to_coord(i))
-    to_pub = markerize_path("map", path_vis)
-    # Listen for transformation boardcast
-    listener = TransformListener()
-    listener.waitForTransform(MAP_FRAME, CAR_FRAME, rospy.Time(), rospy.Duration(4.0))
-    # Subscribe for the angle topic
-    rospy.Subscriber(ANGLE_TOPIC, Float32MultiArray, callback=angle_vis_callback)
+    test_tree = RRT(MASTER_MAP.car_init_pose,MASTER_MAP.dest_pose,MASTER_MAP)
+    test_tree.construct_RRT(50)
+    pth = test_tree.find_path()
+    print("successfully constructed")
+    print("Path",pth)
+    to_pub = markerize_points("map",np.squeeze(test_tree.explored_coords).tolist())
+    to_pub_path = markerize_path("map",pth)
     while not rospy.is_shutdown():
-        # Publish waypoint path
         path_pub.publish(to_pub)
-        try:
-            now = rospy.Time.now()
-            listener.waitForTransform(
-                MAP_FRAME, CAR_FRAME, rospy.Time(), rospy.Duration(4.0)
-            )
-            (car_translation, car_rotation) = listener.lookupTransform(
-                MAP_FRAME, CAR_FRAME, rospy.Time(0)
-            )
-        except (LookupException, ExtrapolationException):
-            print(angle_path, now)
+        angle_pub.publish(to_pub_path)
+    # path_vis = []
+    # for i in PATH:
+    #     path_vis.append(MASTER_MAP.grid_to_coord(i))
+    # to_pub = markerize_path("map", path_vis)
+    # # Listen for transformation boardcast
+    # listener = TransformListener()
+    # listener.waitForTransform(MAP_FRAME, CAR_FRAME, rospy.Time(), rospy.Duration(4.0))
+    # # Subscribe for the angle topic
+    # rospy.Subscriber(ANGLE_TOPIC, Float32MultiArray, callback=angle_vis_callback)
+    # while not rospy.is_shutdown():
+    #     # Publish waypoint path
+    #     path_pub.publish(to_pub)
+    #     try:
+    #         now = rospy.Time.now()
+    #         listener.waitForTransform(
+    #             MAP_FRAME, CAR_FRAME, rospy.Time(), rospy.Duration(4.0)
+    #         )
+    #         (car_translation, car_rotation) = listener.lookupTransform(
+    #             MAP_FRAME, CAR_FRAME, rospy.Time(0)
+    #         )
+    #     except (LookupException, ExtrapolationException):
+    #         print(angle_path, now)
 
-        if angle_path is not None:
-            # initialize angle_points according to size of input points
-            angle_points = np.zeros([angle_path.shape[0], angle_path.shape[1] + 1])
-            print(angle_path.shape)
-            for i in range(angle_path.shape[0]):
-                angle_points[i] = u_tf.tf_point(
-                    angle_path[i],
-                    car_translation,
-                    car_rotation,
-                    ref=True,
-                    rot_c=1,
-                    dim3=False,
-                )
-            to_pub_steer = markerize_points("map", angle_points)
-            angle_pub.publish(to_pub_steer)
+    #     if angle_path is not None:
+    #         # initialize angle_points according to size of input points
+    #         angle_points = np.zeros([angle_path.shape[0], angle_path.shape[1] + 1])
+    #         for i in range(angle_path.shape[0]):
+    #             angle_points[i] = u_tf.tf_point(
+    #                 angle_path[i],
+    #                 car_translation,
+    #                 car_rotation,
+    #                 ref=True,
+    #                 rot_c=1,
+    #                 dim3=False,
+    #             )
+    #         to_pub_steer = markerize_points("map", angle_points)
+    #         angle_pub.publish(to_pub_steer)

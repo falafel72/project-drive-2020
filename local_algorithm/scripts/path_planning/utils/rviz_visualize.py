@@ -130,4 +130,5 @@ def markerize_points(frame_id, points):
     for wp_index in range(0, len(points)):
         new_wall = create_sphere(frame_id, points[wp_index], wp_index, "wall")
         point_markers.append(new_wall)
+    print(len(point_markers))
     return MarkerArray(point_markers)
