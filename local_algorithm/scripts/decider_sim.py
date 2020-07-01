@@ -6,6 +6,7 @@ import sys
 import json
 import cv2
 import math
+import click
 from local_alg import local_alg
 from parser import laser_parser
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -20,6 +21,8 @@ LASER_TOPIC = "/scan"
 ODOM_TOPIC = "/odom"
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
+#This is set via command line
+FRAME_RATE = 10
 
 points = []
 relative_waypoints = []
@@ -63,7 +66,6 @@ def callback(data, IO):
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "No visualization"
     message.drive.steering_angle = angle * 1.5
-    print("steering angle", message.drive.steering_angle)
     message.drive.speed = configs["speeds"][index]
     IO[1].publish(message)
     publish_points(IO[0].paths[index, :, :], IO[4])
@@ -182,7 +184,7 @@ def output_video():
     ]
     # Declare video output
     video_out = cv2.VideoWriter(
-        video_output, cv2.VideoWriter_fourcc("M", "J", "P", "G"), 10, (w, h)
+        video_output, cv2.VideoWriter_fourcc("M", "J", "P", "G"), FRAME_RATE, (w, h)
     )
     flag = len(relative_waypoints) > 0
     for i in range(len(points)):
@@ -247,10 +249,18 @@ def save_odom(data, newest_pos):
 """
 
 
-def handle(visualize):
+@click.command()
+@click.option('--visualize', is_flag=True)
+@click.option('--opponent', is_flag=True)
+@click.option('--frame_rate', default=10)
+def handle(visualize, opponent, frame_rate):
     rospy.init_node("local_algorithm")
     decider = local_alg("./config.json")
     decider.generate_paths()
+    print(frame_rate)
+    FRAME_RATE = frame_rate
+    if(opponent):
+        CONTROL_TOPIC = '/opp_drive'
     # announcer = rospy.Publisher('/car_1/command', AckermannDriveStamped, queue_size=2)
     announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
     point_export = rospy.Publisher(PATH_TOPIC, Float32MultiArray, queue_size=2)
@@ -282,10 +292,4 @@ def handle(visualize):
 
 if __name__ == "__main__":
     time.sleep(5)
-    if (len(sys.argv) > 1) and (sys.argv[1] == "visualize"):
-        # Call the handle function and then visualize
-        # Generates a video with the scanned points and
-        # predicted paths and preferences
-        handle(True)
-    else:
-        handle(False)
+    handle()
