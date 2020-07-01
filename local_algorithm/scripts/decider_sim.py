@@ -16,13 +16,14 @@ from tf.transformations import euler_from_quaternion
 from std_msgs.msg import *
 
 CONFIG_FILE = "./config.json"
-LASER_TOPIC = "/scan"
-ODOM_TOPIC = "/odom"
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
 #These are set via command line
-FRAME_RATE = 10
-CONTROL_TOPIC = "/drive"
+#FRAME_RATE = 10
+#CONTROL_TOPIC = "/drive"
+#LASER_TOPIC = "/scan"
+#ODOM_TOPIC = "/odom"
+#PUBLISH_PATH = True
 
 points = []
 relative_waypoints = []
@@ -254,15 +255,21 @@ def save_odom(data, newest_pos):
 @click.option('--opponent', is_flag=True)
 @click.option('--frame_rate', default=10)
 def handle(visualize, opponent, frame_rate):
-    rospy.init_node("local_algorithm")
+    rospy.init_node("local_algorithm", anonymous=True)
     decider = local_alg("./config.json")
     decider.generate_paths()
     print(frame_rate)
     FRAME_RATE = frame_rate
-    if(opponent):
-        CONTROL_TOPIC = '/opp_drive'
-    else:
+    if(not opponent):
         CONTROL_TOPIC = '/drive'
+        LASER_TOPIC = '/scan'
+        ODOM_TOPIC = '/odom'
+        PUBLISH_PATH = True
+    else:
+        CONTROL_TOPIC = '/opp_drive'
+        LASER_TOPIC = '/opp_scan'
+        ODOM_TOPIC = '/opp_odom'
+        PUBLISH_PATH = False
     # announcer = rospy.Publisher('/car_1/command', AckermannDriveStamped, queue_size=2)
     announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
     point_export = rospy.Publisher(PATH_TOPIC, Float32MultiArray, queue_size=2)
