@@ -1,6 +1,9 @@
 import math
 import numpy as np
+import rospy
 
+from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import Odometry
 
 class grid_map:
     def __init__(self):
@@ -178,3 +181,45 @@ class grid_map:
                 sum_sq += math.pow((coord1[i] - coord2[i]), 2)
             return math.sqrt(sum_sq)
         return None
+
+    def initial_odom_callback(self,data):
+        """ One time listener of the initial position of the car
+
+        Args:
+            data (object:nav_msgs.msg.Odometry): the odometry data
+        """
+        x = data.pose.pose.position.x
+        y = data.pose.pose.position.y
+        z = data.pose.pose.position.z
+        self.set_init_dest_pose((x, y, z))
+
+
+    def initial_map_builder(self,data):
+        """ One time listener that get the map metadata
+
+        Args:
+            data (object:nav_msgs.msg.Occupancygrid): the occupancy grid data
+        """
+        occ_grid = data.data
+        res = data.info.resolution
+        width = data.info.width
+        height = data.info.height
+        og = data.info.origin
+        origin = (og.position.x, og.position.y, og.position.z)
+        orientation = (
+            og.orientation.x,
+            og.orientation.y,
+            og.orientation.z,
+            og.orientation.w,
+        )
+        self.update_map(
+            occ_grid, width, height, (0.1, 0.1, 0.0), origin, orientation, res
+        )
+
+
+    def intial_state_listener(self,map_topic,odom_topic):
+        """ Construct the map by listening to the first available frame of map 
+            and odometry topics
+        """
+        self.initial_map_builder(rospy.wait_for_message(map_topic, OccupancyGrid))
+        self.initial_odom_callback(rospy.wait_for_message(odom_topic, Odometry))

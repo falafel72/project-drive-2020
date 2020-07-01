@@ -36,48 +36,6 @@ car_translation = [0, 0, 0]
 car_rotation = [0, 0, 0, 0]
 
 
-def initial_odom_callback(data):
-    """ One time listener of the initial position of the car
-
-    Args:
-        data (object:nav_msgs.msg.Odometry): the odometry data
-    """
-    x = data.pose.pose.position.x
-    y = data.pose.pose.position.y
-    z = data.pose.pose.position.z
-    MASTER_MAP.set_init_dest_pose((x, y, z))
-
-
-def initial_map_builder(data):
-    """ One time listener that get the map metadata
-
-    Args:
-        data (object:nav_msgs.msg.Occupancygrid): the occupancy grid data
-    """
-    occ_grid = data.data
-    res = data.info.resolution
-    width = data.info.width
-    height = data.info.height
-    og = data.info.origin
-    origin = (og.position.x, og.position.y, og.position.z)
-    orientation = (
-        og.orientation.x,
-        og.orientation.y,
-        og.orientation.z,
-        og.orientation.w,
-    )
-    MASTER_MAP.update_map(
-        occ_grid, width, height, (0.1, 0.1, 0.0), origin, orientation, res
-    )
-
-
-def intial_state_listener():
-    # Get map information from /map topic
-    # TODO: check if the node has initialized
-    initial_map_builder(rospy.wait_for_message("/map", OccupancyGrid))
-    initial_odom_callback(rospy.wait_for_message("/odom", Odometry))
-
-
 def angle_vis_callback(data):
     global angle_path
     try:
@@ -90,7 +48,7 @@ if __name__ == "__main__":
     # The transformed angle points to be published
     angle_points = []
     rospy.init_node("path_constructor", anonymous=True)
-    intial_state_listener()
+    MASTER_MAP.intial_state_listener("/map","/odom")
     path_vis = []
     for i in PATH:
         path_vis.append(MASTER_MAP.grid_to_coord(i))
