@@ -3,6 +3,15 @@ from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
+# RGB color constants
+GREEN = (0.0,1.0,0.0)
+RED = (1.0,0.0,0.0)
+BLUE = (0.0,0.0,1.0)
+BLACK = (0.0,0.0,0.0)
+WHITE = (1.0,1.0,1.0)
+
+# RGB dict for string controlled color 
+colors = {"green":GREEN,"red":RED,"blue":BLUE,"black":BLACK,"white":WHITE}
 
 def create_arrow(frame_id, start, end, id, name_space):
     """ Create one arrow marker for rviz
@@ -41,7 +50,7 @@ def create_arrow(frame_id, start, end, id, name_space):
     return arrow
 
 
-def create_sphere(frame_id, coord, id, name_space):
+def create_sphere(frame_id, coord, id, name_space,color,scale):
     """ Create one sphere marker for rviz
 
     Args:
@@ -49,7 +58,8 @@ def create_sphere(frame_id, coord, id, name_space):
         coord (tuple): coordination of the center of sphere (x,y,z)
         id (int): identification number of sphere. Uniquely assigned 
         name_space (string): namespace of the sphere.
-
+        color (tuple): (r,g,b) color tuple for color
+        scale (tuple): (x,y,z) scale of the sphere
     Returns:
         [visualization_msgs.msg.Marker]: a shpere marker to be visualized
     """
@@ -70,13 +80,13 @@ def create_sphere(frame_id, coord, id, name_space):
     sphere.pose.orientation.z = 0.0
     sphere.pose.orientation.w = 0.0
     # NOTE: Currently hard-coded sphere properties
-    sphere.scale.x = 0.1
-    sphere.scale.y = 0.1
-    sphere.scale.z = 0.1
+    sphere.scale.x = scale[0]
+    sphere.scale.y = scale[1]
+    sphere.scale.z = scale[2]
     sphere.color.a = 1.0
-    sphere.color.r = 1.0
-    sphere.color.g = 0.0
-    sphere.color.b = 0.0
+    sphere.color.r = color[0]
+    sphere.color.g = color[1]
+    sphere.color.b = color[2]
     return sphere
 
 
@@ -112,7 +122,7 @@ def markerize_path(frame_id, path):
     return MarkerArray(vis_path)
 
 
-def markerize_points(frame_id, points):
+def markerize_points(frame_id, points,color,scale):
     """ Visualize the imaginary wall that is built on the grid map. The walls are
         connected cells on the grid map, but the approximated coordinate points 
         are used for display the wall, so the wall may appear to be segmented. 
@@ -121,14 +131,16 @@ def markerize_points(frame_id, points):
     Args:
         frame_id (string): frame_id of the walls, required by ROS
         wall (list): coordintes of points that compose of the wall. 
-
+        color (string): the name of color to be used
+        scale (tuple): the scale of the spheres
     Returns:
         [visualization_msgs.msg.MarkerArray]: the array of markers ready to be 
         displayed in rviz
     """
+    c = colors[color]
     point_markers = []
     for wp_index in range(0, len(points)):
-        new_wall = create_sphere(frame_id, points[wp_index], wp_index, "wall")
+        new_wall = create_sphere(frame_id, points[wp_index], wp_index, "wall",c,scale)
         point_markers.append(new_wall)
     print(len(point_markers))
     return MarkerArray(point_markers)

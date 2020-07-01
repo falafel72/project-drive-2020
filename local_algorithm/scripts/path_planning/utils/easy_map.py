@@ -44,8 +44,8 @@ class grid_map:
         # Destination is currently 2 car length behind the car in y direction
         if self.car_init_pose != None and self.car_size != None:
             self.dest_pose = (
-                self.car_init_pose[0],
-                self.car_init_pose[1] - 2 * self.car_size[0],
+                self.car_init_pose[0] - 2 * self.car_size[0],
+                self.car_init_pose[1],
                 0,
             )
 
@@ -54,28 +54,36 @@ class grid_map:
         """
         # Wall is currently centered at 1 car length behind the car in y direction
         wall_center = (
-            self.car_init_pose[0],
-            self.car_init_pose[1] - self.car_size[0],
+            self.car_init_pose[0] - 0.2,
+            self.car_init_pose[1],
             0,
         )
         wall_coord = self.coord_to_grid(wall_center)
+        print(wall_coord)
         reached = False
         i = 0
-        while not reached:
-            # NOTE: working only with the current map
-            self.map[wall_coord[0] - i][wall_coord[1]] = 100
-            self.wall.append((wall_coord[0] - i, wall_coord[1]))
+        for i in range(50):
+        #while not reached:
+            # NOTE: working only with the current map'
+            self.map[wall_coord[0]][wall_coord[1]-i] = 100
+            self.wall.append(self.grid_to_coord((wall_coord[0], wall_coord[1]-i)))
             i += 1
-            if self.map[wall_coord[0] - i][wall_coord[1]] == 100:
+            if self.map[wall_coord[0]][wall_coord[1]-i] == 100:
                 reached = True
-        reached = False
-        i = 0
-        while not reached:
-            self.map[wall_coord[0] + i][wall_coord[1]] = 100
-            self.wall.append((wall_coord[0] + i, wall_coord[1]))
+        # reached = False
+        # i = 0
+        #while not reached:
+            print(self.map[wall_coord[0]][wall_coord[1]+i],i)
+            self.map[wall_coord[0]][wall_coord[1]+i] = 100
+            self.wall.append(self.grid_to_coord((wall_coord[0], wall_coord[1]+i)))
             i += 1
-            if self.map[wall_coord[0] + i][wall_coord[1]] == 100:
+            if self.map[wall_coord[0]][wall_coord[1]+i] == 100:
                 reached = True
+
+    def universal_build_wall(self):
+        """ Build a wall that connect the two points on the surrounding wall 
+            that are closest to the car's initial location.
+        """
 
     def has_built_wall(self):
         # check if the wall has been built
@@ -96,8 +104,8 @@ class grid_map:
 
     def coord_to_grid(self, coord):
         # Give an approximate grid coordinate (truncated)
-        col = int((coord[0] - self.map_origin[0]) / self.map_resolution)
-        row = int((coord[1] - self.map_origin[1]) / self.map_resolution)
+        row = int((coord[0] - self.map_origin[0]) / self.map_resolution)
+        col = int((coord[1] - self.map_origin[1]) / self.map_resolution)
         return [row, col]
 
     def print_map(self):
@@ -122,7 +130,7 @@ class grid_map:
         if target[1] == origin[1]:
             for i in range(origin[0], target[0]):
                 try:
-                    if map.map[i][origin[1]] > 0:
+                    if map.map[origin[1]][i] >= 90:
                         return False
                 except:
                     return False
@@ -138,8 +146,8 @@ class grid_map:
         for i in range(origin[1], target[1]):
             try:
                 if (
-                    map.map[i][int(i * slope + inter)] > 0
-                    or map.map[i][int(i * slope + inter) + 1] > 0
+                    map.map[int(i * slope + inter)][i] >= 90
+                    or map.map[int(i * slope + inter) + 1][i] >= 90
                 ):
                     return False
             except:

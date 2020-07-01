@@ -23,6 +23,10 @@ MAP_FRAME = "/map"
 path_pub = rospy.Publisher("/path_vis", MarkerArray, queue_size=3)
 # Angle choice publisher
 angle_pub = rospy.Publisher("/steer_angle_vis", MarkerArray, queue_size=3)
+# wall pub
+wall_pub = rospy.Publisher("/wall",MarkerArray,queue_size=1)
+# generated waypoint pub
+waypoint_pub = rospy.Publisher("/wp",MarkerArray,queue_size=1)
 # Waypoints
 PATH = [
     [193, 303],
@@ -38,6 +42,8 @@ PATH = [
     [134, 343],
     [172, 322],
 ]
+# Car size (x,y,z)
+CAR_SIZE = (0.4,0.2,0.1)
 # pass updated angle path for marker publisher
 angle_path = None
 # Global transformation of the car
@@ -76,7 +82,7 @@ def initial_map_builder(data):
         og.orientation.w,
     )
     MASTER_MAP.update_map(
-        occ_grid, width, height, (0.1, 0.1, 0.0), origin, orientation, res
+        occ_grid, width, height, CAR_SIZE, origin, orientation, res
     )
 
 
@@ -96,21 +102,25 @@ def angle_vis_callback(data):
 
 if __name__ == "__main__":
 
-
     # The transformed angle points to be published
     angle_points = []
     rospy.init_node("path_constructor", anonymous=True)
     intial_state_listener()
+    MASTER_MAP.build_wall()
+    print(MASTER_MAP.wall)
     test_tree = RRT(MASTER_MAP.car_init_pose,MASTER_MAP.dest_pose,MASTER_MAP)
-    test_tree.construct_RRT(50)
+    print("Constructed",test_tree.construct_RRT(50))
     pth = test_tree.find_path()
-    print("successfully constructed")
     print("Path",pth)
-    to_pub = markerize_points("map",np.squeeze(test_tree.explored_coords).tolist())
-    to_pub_path = markerize_path("map",pth)
+    to_pub = markerize_points("map",np.squeeze(test_tree.explored_coords).tolist(),"red",(0.1,0.1,0.1))
+    to_pub_path = markerize_points("map",[MASTER_MAP.car_init_pose,MASTER_MAP.dest_pose],"green",(0.4,0.4,0.4))
+    to_put_search = markerize_points("map",list(test_tree.vis_frontier),"white",(0.2,0.2,0.2))
+    to_pub_wall = markerize_points("map",MASTER_MAP.wall,"black",(0.6,0.6,0.6))
     while not rospy.is_shutdown():
         path_pub.publish(to_pub)
         angle_pub.publish(to_pub_path)
+        waypoint_pub.publish(to_put_search)
+        wall_pub.publish(to_pub_wall)
     # path_vis = []
     # for i in PATH:
     #     path_vis.append(MASTER_MAP.grid_to_coord(i))

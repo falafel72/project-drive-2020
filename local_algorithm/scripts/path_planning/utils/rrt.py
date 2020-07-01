@@ -8,7 +8,7 @@ from sklearn.neighbors import KDTree
 from .easy_map import grid_map
 
 # Hyperparameters
-SEARCH_RADIUS = 2.0
+SEARCH_RADIUS = 4.0
 
 
 class RRT:
@@ -38,6 +38,8 @@ class RRT:
         # NOTE: This Tree will be reconstructed every time the explored_coords
         # updates
         self.kd_search_tree = KDTree(np.array([self.origin]), leaf_size=4)
+        
+        self.vis_frontier = set()
 
     def search_and_connect_nearest_node(self, random_coord):
         """ Seach the curernt RRT to find several nearest coordinate neighbors of
@@ -78,6 +80,9 @@ class RRT:
             destination_node (object:coord_node): the destination to be reached
             quick (bool, optional): True if construct then search, False if search 
             then construct
+
+        Return:
+            bool: True if the path contains the destination, False otherwise
         """
         current_node_count = 0
         last_coord = None
@@ -86,7 +91,6 @@ class RRT:
                 rand_coord = self.create_random_coord()
                 # Increment node count only with successful addition of node
                 if self.search_and_connect_nearest_node(rand_coord):
-                    print("found")
                     current_node_count += 1
                     last_coord = rand_coord
         else:
@@ -104,16 +108,22 @@ class RRT:
                     ):
                         # Set the parent of the random_coord
                         valid_point = np.squeeze(self.explored_coords[i]).tolist()
-                        if not valid_point in self.added_coords:
+                        self.vis_frontier.add(tuple(checking))
+                        if tuple(valid_point) == self.dest:
+                            self.path_tree[self.dest][0] = checking[0]
+                            self.path_tree[self.dest][1] = checking[1] 
+                            self.path_tree[self.dest][2] = checking[2]
+                            return True
+                        elif not valid_point in self.added_coords:
                             self.added_coords.append(valid_point)
                             self.path_tree[tuple(valid_point)][0] = checking[0]
                             self.path_tree[tuple(valid_point)][1] = checking[1] 
                             self.path_tree[tuple(valid_point)][2] = checking[2]                          
                             frontier.append(tuple(valid_point))
-                            last_coord = checking
+
+            return False 
         # Add in destination to the last coords' children
         # TODO: find a better way. Last node may not always be reachable
-        self.path_tree[self.dest] = list(checking)
 
     def crude_points_gen(self, total_coord_num):
         """ Generate a number of waypoints on in free space
@@ -127,6 +137,8 @@ class RRT:
             self.explored_coords = np.append(self. explored_coords,rand_coord)
             self.path_tree[rand_coord] = ([0,0,0])
             coord_num += 1
+        self.explored_coords = np.append(self.explored_coords,self.dest)
+        self.path_tree[self.dest] = ([0,0,0])
         self.explored_coords = np.reshape(self.explored_coords,[-1,3])
 
     def create_random_coord(self):
@@ -151,7 +163,7 @@ class RRT:
                 continue
             val = self.occ_grid.map[int(y)][int(x)]
             coord = self.occ_grid.grid_to_coord((int(x), int(y)))
-        self.occ_grid.map[grid_coord[0]][grid_coord[1]] = 100
+        self.occ_grid.map[grid_coord[0]][grid_coord[1]] = 1
         return coord
 
     def check_surrounding(self,point,area = 5):
@@ -178,8 +190,6 @@ class RRT:
         """
         path = []
         current_coord = self.dest
-        print("current",current_coord)
-        print(self.path_tree[tuple(self.dest)])
         while current_coord != list(self.origin):
             path.append(current_coord)
             current_coord = self.path_tree[tuple(current_coord)]
