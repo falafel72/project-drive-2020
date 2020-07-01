@@ -16,13 +16,13 @@ from tf.transformations import euler_from_quaternion
 from std_msgs.msg import *
 
 CONFIG_FILE = "./config.json"
-CONTROL_TOPIC = "/drive"
 LASER_TOPIC = "/scan"
 ODOM_TOPIC = "/odom"
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
-#This is set via command line
+#These are set via command line
 FRAME_RATE = 10
+CONTROL_TOPIC = "/drive"
 
 points = []
 relative_waypoints = []
@@ -261,6 +261,8 @@ def handle(visualize, opponent, frame_rate):
     FRAME_RATE = frame_rate
     if(opponent):
         CONTROL_TOPIC = '/opp_drive'
+    else:
+        CONTROL_TOPIC = '/drive'
     # announcer = rospy.Publisher('/car_1/command', AckermannDriveStamped, queue_size=2)
     announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
     point_export = rospy.Publisher(PATH_TOPIC, Float32MultiArray, queue_size=2)
