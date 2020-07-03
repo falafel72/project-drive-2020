@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import rospy
 import numpy as np
 import time
@@ -15,16 +16,40 @@ from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
 from std_msgs.msg import *
 
+from path_planning.utils.easy_map import grid_map
+import path_planning.utils.transform as car_tf
+from path_planning.utils.pid_controllers import PIDController
+from tf import ExtrapolationException, LookupException, TransformListener
+
+# PID control constants and speed constant
+SPEED_CONST = 2.5
+PID_CONST = [
+    math.pi / (180 * SPEED_CONST),
+    math.pi / (300 * SPEED_CONST),
+    math.pi / (500 * SPEED_CONST),
+]
+# TF frame for the car and the map
+CAR_FRAME = "ego_racecar/base_link"
+MAP_FRAME = "/map"
+# Global transformation of the car
+car_translation = [0, 0, 0]
+car_rotation = [0, 0, 0, 0]
+# Steering angle limitation for PID controller
+MAX_ANGLE = math.pi / 4
+MIN_ANGLE = -math.pi / 4
+# odometry topic
+ODOM_TOPIE = "/odom"
 CONFIG_FILE = "./config.json"
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
-#These are set via command line
-#FRAME_RATE = 10
-#CONTROL_TOPIC = "/drive"
-#LASER_TOPIC = "/scan"
-#ODOM_TOPIC = "/odom"
-#PUBLISH_PATH = True
-
+# These are set via command line
+# FRAME_RATE = 10
+# CONTROL_TOPIC = "/drive"
+# LASER_TOPIC = "/scan"
+# ODOM_TOPIC = "/odom"
+# PUBLISH_PATH = True
+# PID drive publisher
+pid_pub = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=10)
 points = []
 relative_waypoints = []
 costs = []
@@ -39,12 +64,17 @@ STEER_SPEED = 0.01
 # Read the config file to obtain the radii
 config_file = open(CONFIG_FILE)
 configs = json.load(config_file)
+# load waypoints
+WAY_POINT_GRID = configs["waypoints"]
 config_file.close()
-
+# easy to use occupancy grid map
+MASTER_MAP = grid_map()
 """
     Same as callback_vis, but does not
     save points for visualization
 """
+# Listener of tf, to be initiated in handle
+listener = None
 
 
 def callback(data, IO):
@@ -72,17 +102,56 @@ def callback(data, IO):
     publish_points(IO[0].paths[index, :, :], IO[4])
 
 
-"""
-    The callback for the /scan channel.
-    data contains the laser scan sent by ROS,
-    and IO contains extra arguments
-    This calls local_alg and publishes
-    the desired steering angle and speed to /drive
-    Saves the laser scan and waypoints
-"""
+def callback_pid(data, IO):
+    """ PID control callback.
+
+    Args:
+        data (nav_msgs.msg.Odometry): the current odometry of the car
+        IO (list): additional parameters for the callback:
+        [PID controller, driver publisher]
+    """
+    global steer_angle
+    # get the current position and rotation from odometry
+    current_pose = [
+        data.pose.pose.position.x,
+        data.pose.pose.position.y,
+        data.pose.pose.position.z,
+    ]
+    current_rotation = [
+        data.pose.pose.orientation.x,
+        data.pose.pose.orientation.y,
+        data.pose.pose.orientation.z,
+        data.pose.pose.orientation.w,
+    ]
+    # ros time has secs and nsecs, added together to get actual time as float
+    now = rospy.Time.now()
+    now = now.secs + now.nsecs * (10 ** -9)
+    # the change of turning angle per iteration
+    angle_change = IO[0].steer_angle_velocity(current_pose, current_rotation, now)
+    steer_angle += angle_change
+    # limit the steering angle
+    if steer_angle > MAX_ANGLE:
+        steer_angle = MAX_ANGLE
+    if steer_angle < MIN_ANGLE:
+        steer_angle = MIN_ANGLE
+    message = AckermannDriveStamped()
+    message.header.stamp = rospy.Time.now()
+    message.header.frame_id = "PID"
+    message.drive.steering_angle = steer_angle
+    message.drive.speed = SPEED_CONST
+    IO[1].publish(message)
+    print("steer/steer v:"+str(steer_angle)+ str(angle_change),end="\r")
 
 
 def callback_vis(data, IO):
+    """
+        The callback for the /scan channel.
+        data contains the laser scan sent by ROS,
+        and IO contains extra arguments
+        This calls local_alg and publishes
+        the desired steering angle and speed to /drive
+        Saves the laser scan and waypoints
+    """
     IO[2] += 1
     if not IO[2] % 10 == 0:
         return
@@ -251,24 +320,36 @@ def save_odom(data, newest_pos):
 
 
 @click.command()
-@click.option('--visualize', is_flag=True)
-@click.option('--opponent', is_flag=True)
-@click.option('--frame_rate', default=10)
-def handle(visualize, opponent, frame_rate):
+@click.option("--visualize", is_flag=True)
+@click.option("--opponent", is_flag=True)
+@click.option("--frame_rate", default=10)
+@click.option("--pid", is_flag=True)
+def handle(visualize, opponent, frame_rate, pid):
+    global listener
     rospy.init_node("local_algorithm", anonymous=True)
+    listener = TransformListener()
+    MASTER_MAP.intial_state_listener("/map", "/odom")
+    way_point_coord = []
+    # transform waypoints from grid (row, col) to coord (x,y,z)
+    for i in WAY_POINT_GRID:
+        way_point_coord.append(MASTER_MAP.grid_to_coord(i))
+    # get initial time to setup the pid controller
+    init_time = rospy.Time.now().secs + rospy.Time.now().nsecs * (10 ** -9)
+    # set pit controller
+    pid_driver = PIDController(PID_CONST, init_time, way_point_coord)
     decider = local_alg("./config.json")
     decider.generate_paths()
     print(frame_rate)
     FRAME_RATE = frame_rate
-    if(not opponent):
-        CONTROL_TOPIC = '/drive'
-        LASER_TOPIC = '/scan'
-        ODOM_TOPIC = '/odom'
+    if not opponent:
+        CONTROL_TOPIC = "/drive"
+        LASER_TOPIC = "/scan"
+        ODOM_TOPIC = "/odom"
         PUBLISH_PATH = True
     else:
-        CONTROL_TOPIC = '/opp_drive'
-        LASER_TOPIC = '/opp_scan'
-        ODOM_TOPIC = '/opp_odom'
+        CONTROL_TOPIC = "/opp_drive"
+        LASER_TOPIC = "/opp_scan"
+        ODOM_TOPIC = "/opp_odom"
         PUBLISH_PATH = False
     # announcer = rospy.Publisher('/car_1/command', AckermannDriveStamped, queue_size=2)
     announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
@@ -285,6 +366,14 @@ def handle(visualize, opponent, frame_rate):
         # whenever one is published
         rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, newest_pos)
         rospy.on_shutdown(output_video)
+    elif pid:
+        # point_export was added as an attempt to visualize path, but failed at this moment
+        rospy.Subscriber(
+            ODOM_TOPIC,
+            Odometry,
+            callback_pid,
+            callback_args=[pid_driver, pid_pub, point_export],
+        )
     else:
         count = 0
         rospy.Subscriber(
@@ -300,5 +389,5 @@ def handle(visualize, opponent, frame_rate):
 
 
 if __name__ == "__main__":
-    time.sleep(5)
+    time.sleep(1)
     handle()

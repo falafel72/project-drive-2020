@@ -99,8 +99,8 @@ class grid_map:
 
     def coord_to_grid(self, coord):
         # Give an approximate grid coordinate (truncated)
-        col = int((coord[0] - self.map_origin[0]) / self.map_resolution)
-        row = int((coord[1] - self.map_origin[1]) / self.map_resolution)
+        col = int((coord[0] - self.map_origin[0]) / self.map_resolution)-2
+        row = int((coord[1] - self.map_origin[1]) / self.map_resolution)-2
         return [row, col]
 
     def print_map(self):
