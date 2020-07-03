@@ -5,6 +5,7 @@ import rospy
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
 
+
 class grid_map:
     def __init__(self):
         """ Empty constructer to be used before first ROS update 
@@ -99,8 +100,8 @@ class grid_map:
 
     def coord_to_grid(self, coord):
         # Give an approximate grid coordinate (truncated)
-        col = int((coord[0] - self.map_origin[0]) / self.map_resolution)-2
-        row = int((coord[1] - self.map_origin[1]) / self.map_resolution)-2
+        col = int((coord[0] - self.map_origin[0]) / self.map_resolution) - 2
+        row = int((coord[1] - self.map_origin[1]) / self.map_resolution) - 2
         return [row, col]
 
     def print_map(self):
@@ -182,7 +183,7 @@ class grid_map:
             return math.sqrt(sum_sq)
         return None
 
-    def initial_odom_callback(self,data):
+    def initial_odom_callback(self, data):
         """ One time listener of the initial position of the car
 
         Args:
@@ -193,8 +194,7 @@ class grid_map:
         z = data.pose.pose.position.z
         self.set_init_dest_pose((x, y, z))
 
-
-    def initial_map_builder(self,data):
+    def initial_map_builder(self, data):
         """ One time listener that get the map metadata
 
         Args:
@@ -216,8 +216,7 @@ class grid_map:
             occ_grid, width, height, (0.1, 0.1, 0.0), origin, orientation, res
         )
 
-
-    def intial_state_listener(self,map_topic,odom_topic):
+    def intial_state_listener(self, map_topic, odom_topic):
         """ Construct the map by listening to the first available frame of map 
             and odometry topics
         """

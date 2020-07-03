@@ -140,7 +140,7 @@ def callback_pid(data, IO):
     message.drive.steering_angle = steer_angle
     message.drive.speed = SPEED_CONST
     IO[1].publish(message)
-    print("steer/steer v:"+str(steer_angle)+ str(angle_change),end="\r")
+    print("steer/steer v:" + str(steer_angle) + str(angle_change), end="\r")
 
 
 def callback_vis(data, IO):

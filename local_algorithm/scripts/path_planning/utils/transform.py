@@ -112,13 +112,13 @@ def tf_point(point, translation, rotation, quat=True, ref=False, rot_c=0, dim3=T
 
     Args:
         point (array-like): the point to be transformed, assuming 3D. 2D assume z is 0
-        translation (array-like): linear translation along (x,y,z) axises
-        rotation (array-like): yaw angle or quaternion rotation
-        euler (bool, optional): Whether the given rotation is quaternion or 
-        yaw angle. True means quat, False otherwise. Defaults to True.
-        ref (bool, optional): True if reflect the point alone y axis, False otherwise
-        rot_c (int, optional): number of clockwise rotation on xy plane. Default to 0
-        dim3 (bool, optional): True if the point is 3d, Flase if 2d. Default to True
+        translation (array-like): linear translation along (x,y,z) axises\\
+        rotation (array-like): yaw angle or quaternion rotation\\
+        quat (bool, optional): Whether the given rotation is quaternion or 
+        yaw angle. True means quat, False otherwise. Defaults to True.\\
+        ref (bool, optional): True if reflect the point alone y axis, False otherwise\\
+        rot_c (int, optional): number of clockwise rotation on xy plane. Default to 0\\
+        dim3 (bool, optional): True if the point is 3d, Flase if 2d. Default to True\\
 
     Returns:
         object:numpy.array: the point after transformation

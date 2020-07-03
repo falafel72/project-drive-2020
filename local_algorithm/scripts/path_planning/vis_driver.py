@@ -29,6 +29,7 @@ config_file = open(CONFIG_FILE)
 configs = json.load(config_file)
 config_file.close()
 PATH = configs["waypoints"]
+print(PATH)
 # pass updated angle path for marker publisher
 angle_path = None
 # Global transformation of the car
@@ -48,12 +49,15 @@ if __name__ == "__main__":
     # The transformed angle points to be published
     angle_points = []
     rospy.init_node("path_constructor", anonymous=True)
-    MASTER_MAP.intial_state_listener("/map","/odom")
+    MASTER_MAP.intial_state_listener("/map", "/odom")
     path_vis = []
     for i in PATH:
         path_vis.append(MASTER_MAP.grid_to_coord(i))
     to_pub = markerize_path("map", path_vis)
+    while not rospy.is_shutdown():
+        path_pub.publish(to_pub)
     # Listen for transformation boardcast
+    """
     listener = TransformListener()
     listener.waitForTransform(MAP_FRAME, CAR_FRAME, rospy.Time(), rospy.Duration(4.0))
     # Subscribe for the angle topic
@@ -86,3 +90,4 @@ if __name__ == "__main__":
                 )
             to_pub_steer = markerize_points("map", angle_points)
             angle_pub.publish(to_pub_steer)
+    """

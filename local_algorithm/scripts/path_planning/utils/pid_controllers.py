@@ -8,7 +8,7 @@ from .transform import tf_point
 
 # hyperparameters:
 DIST_THRESH = 0.5
-I_MAX = math.pi/8
+I_MAX = math.pi / 8
 
 
 class PIDController:
@@ -110,7 +110,7 @@ class PIDController:
         # check if the waypoint is reached
         self.update_current_wps(curr_pose)
         # negative is to the right, positive to the left
-        # turn according to car state 
+        # turn according to car state
         if self.car_state[1]:
             return -velocity
         else:
