@@ -1,7 +1,7 @@
 import numpy as np
 
 class car_state:
-    def __init__():
+    def __init__(self):
         self.timesteps = 50
         self.x = 0.0
         self.y = 0.0
@@ -9,6 +9,7 @@ class car_state:
         self.slip_angle = 0.0
         self.velocity = 0.0
         self.steer_angle = 0.0
+        self.angular_vel = 0.0
         #Config constants
         self.time_delta = 0.01 #f110_env.py
         #racecar.py
@@ -31,7 +32,7 @@ class car_state:
         self.cs_f = 4.718
         self.cs_r = 5.4562
 
-    def predict_state(angles, velocities):
+    def predict_state(self, angles, velocities):
         '''
             angles is the desired steering angles
             velocities is the desired velocities
@@ -51,6 +52,7 @@ class car_state:
         steer_angle += self.steer_angle
         accel = np.zeros(angles.shape)
         angular_vel = np.zeros(angles.shape)
+        angular_vel += self.angular_vel
         slip_angle = np.zeros(angles.shape)
         slip_angle += self.slip_angle
         for i in range(self.timesteps):
@@ -62,10 +64,10 @@ class car_state:
             diff_positive = np.greater(diff, 0)
             tmp = np.logical_and(velocity_positive, diff_positive)
             #Forward and accelerating
-            accel[tmp] = 2.0*self.max_accel*diff/self.max_speed
+            accel[tmp] = 2.0*self.max_accel*diff[tmp]/self.max_speed
             #Backward and accelerating
             tmp = np.logical_and(np.logical_not(velocity_positive), np.logical_not(diff_positive))
-            accel[tmp] = 2.0*self.max_accel*diff/self.max_speed
+            accel[tmp] = 2.0*self.max_accel*diff[tmp]/self.max_speed
             #Clip acceleration to the maximum limit
             np.clip(accel,-self.max_accel,self.max_accel)
             #Backward and decelerating
@@ -100,7 +102,7 @@ class car_state:
             x[k] += x_dot*self.time_delta
             y[k] += y_dot*self.time_delta
             theta[k] += theta_dot*self.time_delta
-            velocity[k] += accek_k*self.time_delta
+            velocity[k] += accel_k*self.time_delta
             steer_angle[k] += angle_vel_k*self.time_delta
             angular_vel[k] += theta_double_dot*self.time_delta
 
@@ -123,7 +125,7 @@ class car_state:
             front_val = self.g * self.l_f + accel_nk * self.h_cg
 
             theta_double_dot = (self.mu * self.mass / (self.i_z * self.wheelbase)) * (self.l_f * self.cs_f * steer_angle_nk * rear_val + slip_angle_nk * (self.l_r * self.cs_r * front_val - self.l_f * self.cs_f * rear_val)) - vel_ratio * ((self.l_f ** 2) * self.cs_f * rear_val + (self.l_r ** 2) * self.cs_r * front_val)
-            slip_angle_dot = np.multiply(first_term, self.cs_f * rear_val * steer_angle_nk - slip_angle_nk * (self.cs_r * front_val + self.cs_f * rear_val)) + vel_ratio * (self.cs_r * self.l_r * front_val - self.cs_f * self.l_f * rear_val) - angular_velocity_nk
+            slip_angle_dot = np.multiply(first_term, self.cs_f * rear_val * steer_angle_nk - slip_angle_nk * (self.cs_r * front_val + self.cs_f * rear_val)) + vel_ratio * (self.cs_r * self.l_r * front_val - self.cs_f * self.l_f * rear_val) - angular_vel_nk
 
             #Update positional variables
             x[nk] += x_dot * self.time_delta
@@ -136,7 +138,7 @@ class car_state:
 
             #Clip velocity and steering angle values
             np.clip(velocity, -self.max_speed, self.max_speed)
-            np.clip(steering_angle, -self.max_steering_angle, self.max_steering_angle)
+            np.clip(steer_angle, -self.max_steering_angle, self.max_steering_angle)
 
             #Add the x and y positions
             all_pos[:,i,0] = x

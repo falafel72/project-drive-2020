@@ -25,6 +25,8 @@ class local_alg:
             self.length_exp = configs["length_exp"]
             self.dis_threshold = configs["dis_threshold"]
             self.wheel_base = configs["wheel_base"]
+            self.speeds = configs["speeds"]
+            self.speeds = np.asarray(self.speeds)
         except KeyError as e:
             print("The config file is incomplete, missing " + e.args[0])
             raise e
@@ -64,7 +66,8 @@ class local_alg:
             else:
                 angle = 0
             self.angles.append(angle)
-        # Initiate the car_state simulator
+        self.angles = np.asarray(self.angles)
+        # Initiate the simulator
         self.simulator = car_state()
         # Gets the importance array, which gives importance based on
         # how far each point is from the car
@@ -111,23 +114,27 @@ class local_alg:
     def transform_to_local(self, point, position):
         point = np.copy(point)
         # Translation
-        point[0] -= position[0]
-        point[1] -= position[1]
+        point[:,0] -= position[0]
+        point[:,1] -= position[1]
         # Rotate clockwise by angle of position[2]
         rotation_matrix = np.zeros((2, 2))
         rotation_matrix[0, 0] = math.cos(position[2])
         rotation_matrix[0, 1] = math.sin(position[2])
         rotation_matrix[1, 0] = -rotation_matrix[0, 1]
         rotation_matrix[1, 1] = rotation_matrix[0, 0]
-        point = rotation_matrix.dot(point)
-        tmp = point[0]
-        point[0] = point[1]
-        point[1] = tmp
+        point = rotation_matrix.dot(point.T).T
+        tmp = point[:,0]
+        point[:,0] = point[:,1]
+        point[:,1] = tmp
         return point
 
     def decide_direction(self, points, position):
-        # Points is the list of obstacle points
+        # Predict the paths
         num_candidates = len(self.candidate_rs)
+        self.paths = self.simulator.predict_state(self.angles, self.speeds)
+        for i in range(num_candidates):
+            self.paths[i,:,:] = self.transform_to_local(self.paths[i,:,:], position)
+        # Points is the list of obstacle points
         costs = np.zeros(num_candidates)
         if self.sim_flag:
             tmp_points = np.zeros(points.shape)
@@ -146,8 +153,10 @@ class local_alg:
         if self.navi_mode:
             # Check if the current waypoint is reached
             # switch to next waypoint if necessary
+            cur_waypoint = np.zeros((1,2))
+            cur_waypoint[0,:] = self.waypoints[self.cur_waypoint]
             relative_waypoint = self.transform_to_local(
-                self.waypoints[self.cur_waypoint], position
+                cur_waypoint, position
             )
             distance = np.linalg.norm(relative_waypoint, ord=2)
             if distance < self.next_thresh[self.cur_waypoint]:
@@ -155,8 +164,9 @@ class local_alg:
                 self.cur_waypoint += 1
                 if self.cur_waypoint == len(self.waypoints):
                     self.cur_waypoint = 0
+                cur_waypoint[0,:] = self.waypoints[self.cur_waypoint]
                 relative_waypoint = self.transform_to_local(
-                    self.waypoints[self.cur_waypoint], position
+                    cur_waypoint, position
                 )
                 distance = np.linalg.norm(relative_waypoint, ord=2)
             # Add costs based on minimum distance of
@@ -190,8 +200,6 @@ class local_alg:
                         * self.length_weights[k]
                         * 0.2
                     )
-        # Set the steering angle on the simulator
-        self.simulator.steering_angle = self.angles[np.argmin(costs)]
         # Return the relative waypoint for visualization.
         # This is still returned when visualization is not on.
         # Not the most elegant design here
