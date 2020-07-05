@@ -302,7 +302,7 @@ def output_video():
 """
 
 
-def save_odom(data, newest_pos):
+def save_odom(data, [newest_pos, decider]):
     newest_pos[0] = data.pose.pose.position.x
     newest_pos[1] = data.pose.pose.position.y
     # The third element is the rotation around
@@ -310,6 +310,11 @@ def save_odom(data, newest_pos):
     quaternion = data.pose.pose.orientation
     quaternion = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
     newest_pos[2] = euler_from_quaternion(quaternion)[2]
+    # Save the position to the decider simulator
+    decider.simulator.x = newest_pos[0]
+    decider.simulator.y = newest_pos[1]
+    decider.simulator.theta = newest_pos[2]
+    decider.simulator.velocity = data.twist.twist.linear.x
 
 
 """
@@ -364,7 +369,7 @@ def handle(visualize, opponent, frame_rate, pid):
         )
         # Subscribe to the odom topic and save the newest position
         # whenever one is published
-        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, newest_pos)
+        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
         rospy.on_shutdown(output_video)
     elif pid:
         # point_export was added as an attempt to visualize path, but failed at this moment
@@ -382,7 +387,7 @@ def handle(visualize, opponent, frame_rate, pid):
             callback,
             [decider, announcer, count, newest_pos, point_export],
         )
-        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, newest_pos)
+        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
     rospy.spin()
     # if(not visualize==-1):
     #    output_video()

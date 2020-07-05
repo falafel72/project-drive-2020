@@ -2,13 +2,13 @@ import numpy as np
 
 class car_state:
     def __init__():
-        self.timesteps
-        self.x
-        self.y
-        self.theta
-        self.slip_angle
-        self.velocity
-        self.steer_angle
+        self.timesteps = 50
+        self.x = 0.0
+        self.y = 0.0
+        self.theta = 0.0
+        self.slip_angle = 0.0
+        self.velocity = 0.0
+        self.steer_angle = 0.0
         #Config constants
         self.time_delta = 0.01 #f110_env.py
         #racecar.py
@@ -42,6 +42,7 @@ class car_state:
         x += self.x
         y = np.zeros(angles.shape)
         y += self.y
+        all_pos = np.zeros((angles.shape[0], self.timesteps, 2))
         velocity = np.zeros(angles.shape)
         velocity += self.velocity
         theta = np.zeros(angles.shape)
@@ -136,3 +137,8 @@ class car_state:
             #Clip velocity and steering angle values
             np.clip(velocity, -self.max_speed, self.max_speed)
             np.clip(steering_angle, -self.max_steering_angle, self.max_steering_angle)
+
+            #Add the x and y positions
+            all_pos[:,i,0] = x
+            all_pos[:,i,1] = y
+        return all_pos

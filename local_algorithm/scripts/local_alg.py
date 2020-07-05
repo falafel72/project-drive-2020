@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from os import path
 from distance_funcs import *
+from car_state import *
 import json
 import math
 import numpy as np
@@ -63,6 +64,8 @@ class local_alg:
             else:
                 angle = 0
             self.angles.append(angle)
+        # Initiate the car_state simulator
+        self.simulator = car_state()
         # Gets the importance array, which gives importance based on
         # how far each point is from the car
         self.length_weights = length_weight(self.num_steps, self.length_exp)
@@ -187,6 +190,8 @@ class local_alg:
                         * self.length_weights[k]
                         * 0.2
                     )
+        # Set the steering angle on the simulator
+        self.simulator.steering_angle = self.angles[np.argmin(costs)]
         # Return the relative waypoint for visualization.
         # This is still returned when visualization is not on.
         # Not the most elegant design here
