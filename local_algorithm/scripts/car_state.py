@@ -2,7 +2,7 @@ import numpy as np
 
 class car_state:
     def __init__(self):
-        self.timesteps = 100
+        self.timesteps = 150
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
@@ -55,6 +55,7 @@ class car_state:
         angular_vel += self.angular_vel
         slip_angle = np.zeros(angles.shape)
         slip_angle += self.slip_angle
+        print('decider')
         for i in range(self.timesteps):
             #Decide on the steering angle velocity,
             #the steering angle, the acceleration,
@@ -139,6 +140,11 @@ class car_state:
             #Clip velocity and steering angle values
             np.clip(velocity, -self.max_speed, self.max_speed)
             np.clip(steer_angle, -self.max_steering_angle, self.max_steering_angle)
+
+            print(theta_double_dot[4])
+            print(angular_vel[4])
+            print(slip_angle[4])
+            print('step')
 
             #Add the x and y positions
             all_pos[:,i,0] = x

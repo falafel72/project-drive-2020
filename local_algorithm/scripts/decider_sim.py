@@ -320,9 +320,11 @@ def save_odom(data, IO):
     decider.simulator.velocity = data.twist.twist.linear.x
     decider.simulator.angular_vel = data.twist.twist.angular.z
     # Find the actual direction
-    actual_direction = math.atan2(newest_pos[1] - prev_pos[1],
-            newest_pos[0] - prev_pos[0])
-    decider.simulator.slip_angle = actual_direction - newest_pos[2]
+    # Do not update if newest_pos had not changed
+    if(not np.all(np.equal(prev_pos, newest_pos))):
+        actual_direction = math.atan2(newest_pos[1] - prev_pos[1],
+                newest_pos[0] - prev_pos[0])
+        decider.simulator.slip_angle = actual_direction - prev_pos[2]
 
 
 """
