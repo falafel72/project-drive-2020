@@ -305,6 +305,7 @@ def output_video():
 def save_odom(data, IO):
     newest_pos = IO[0]
     decider = IO[1]
+    prev_pos = np.copy(newest_pos)
     newest_pos[0] = data.pose.pose.position.x
     newest_pos[1] = data.pose.pose.position.y
     # The third element is the rotation around
@@ -318,6 +319,10 @@ def save_odom(data, IO):
     decider.simulator.theta = newest_pos[2]
     decider.simulator.velocity = data.twist.twist.linear.x
     decider.simulator.angular_vel = data.twist.twist.angular.z
+    # Find the actual direction
+    actual_direction = math.atan2(newest_pos[1] - prev_pos[1],
+            newest_pos[0] - prev_pos[0])
+    decider.simulator.slip_angle = actual_direction - newest_pos[2]
 
 
 """
