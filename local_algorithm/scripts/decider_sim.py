@@ -43,11 +43,11 @@ CONFIG_FILE = "./config.json"
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
 # These are set via command line
-# FRAME_RATE = 10
-# CONTROL_TOPIC = "/drive"
-# LASER_TOPIC = "/scan"
-# ODOM_TOPIC = "/odom"
-# PUBLISH_PATH = True
+FRAME_RATE = 10
+CONTROL_TOPIC = "/drive"
+LASER_TOPIC = "/scan"
+ODOM_TOPIC = "/odom"
+PUBLISH_PATH = True
 # PID drive publisher
 pid_pub = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=10)
 points = []
