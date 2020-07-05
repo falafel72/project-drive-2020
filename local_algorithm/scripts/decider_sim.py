@@ -21,12 +21,17 @@ import path_planning.utils.transform as car_tf
 from path_planning.utils.pid_controllers import PIDController
 from tf import ExtrapolationException, LookupException, TransformListener
 
-# PID control constants and speed constant
-SPEED_CONST = 2.5
+# PID control speed constant
+MAX_SPEED = 4
+SPEED_CONST = 2
+# Steering angle limitation for PID controller
+MAX_ANGLE = math.pi / 6
+MIN_ANGLE = -math.pi / 6
+# PID constants 
 PID_CONST = [
-    math.pi / (180 * SPEED_CONST),
-    math.pi / (300 * SPEED_CONST),
-    math.pi / (500 * SPEED_CONST),
+    MAX_ANGLE/180 ,
+    MAX_ANGLE/1800,
+    MAX_ANGLE*1,
 ]
 # TF frame for the car and the map
 CAR_FRAME = "ego_racecar/base_link"
@@ -34,9 +39,7 @@ MAP_FRAME = "/map"
 # Global transformation of the car
 car_translation = [0, 0, 0]
 car_rotation = [0, 0, 0, 0]
-# Steering angle limitation for PID controller
-MAX_ANGLE = math.pi / 4
-MIN_ANGLE = -math.pi / 4
+
 # odometry topic
 ODOM_TOPIE = "/odom"
 CONFIG_FILE = "./config.json"
@@ -130,15 +133,15 @@ def callback_pid(data, IO):
     angle_change = IO[0].steer_angle_velocity(current_pose, current_rotation, now)
     steer_angle += angle_change
     # limit the steering angle
-    if steer_angle > MAX_ANGLE:
-        steer_angle = MAX_ANGLE
-    if steer_angle < MIN_ANGLE:
-        steer_angle = MIN_ANGLE
+    if angle_change > MAX_ANGLE:
+        angle_change = MAX_ANGLE
+    if angle_change < MIN_ANGLE:
+        angle_change = MIN_ANGLE
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "PID"
-    message.drive.steering_angle = steer_angle
-    message.drive.speed = SPEED_CONST
+    message.drive.steering_angle = angle_change
+    message.drive.speed = MAX_SPEED - SPEED_CONST* abs(angle_change)
     IO[1].publish(message)
     print("steer/steer v:" + str(steer_angle) + str(angle_change), end="\r")
 
