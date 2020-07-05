@@ -2,7 +2,7 @@ import numpy as np
 
 class car_state:
     def __init__(self):
-        self.timesteps = 50
+        self.timesteps = 100
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0

@@ -54,6 +54,7 @@ points = []
 relative_waypoints = []
 costs = []
 indices = []
+predicted_paths = []
 count = 0
 newest_pos = np.zeros(3)
 
@@ -86,7 +87,7 @@ def callback(data, IO):
     # index is the index of the best path
     # tmp is the waypoint visualization
     # this is not used here
-    [angle, index, cur_costs, tmp] = IO[0].decide_direction(cur_points, IO[3])
+    [angle, index, cur_costs, tmp1, tmp2] = IO[0].decide_direction(cur_points, IO[3])
     if steer_angle < angle:
         steer_angle += STEER_SPEED
     elif steer_angle > angle:
@@ -157,12 +158,13 @@ def callback_vis(data, IO):
         return
     cur_points = laser_parser(data)
     # index is the index of the best path
-    [angle, index, cur_costs, waypoint] = IO[0].decide_direction(cur_points, IO[3])
+    [angle, index, cur_costs, waypoint, paths] = IO[0].decide_direction(cur_points, IO[3])
     # Save the laser scan points for visualization
     points.append(cur_points)
     costs.append(cur_costs)
     indices.append(index)
     relative_waypoints.append(waypoint)
+    predicted_paths.append(paths)
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "Visualized"
@@ -243,15 +245,6 @@ def output_video():
     # Calculate the video shape
     w = int(configs["hori_size"] * 2 / configs["vis_resolution"]) + 1
     h = int(configs["hori_size"] / configs["vis_resolution"]) + 1
-    # Preprocess the path points
-    decider = local_alg("./config.json")
-    decider.generate_paths()
-    paths = [
-        prepare_points(
-            path, configs["hori_size"], configs["vert_size"], configs["vis_resolution"]
-        )
-        for path in decider.paths
-    ]
     # Declare video output
     video_out = cv2.VideoWriter(
         video_output, cv2.VideoWriter_fourcc("M", "J", "P", "G"), FRAME_RATE, (w, h)
@@ -269,6 +262,13 @@ def output_video():
             configs["vis_resolution"],
         )
         frame[points_pixel[:, 1], points_pixel[:, 0], :] = 0
+        #Process the paths from this frame
+        paths = [
+            prepare_points(
+                predicted_paths[i][k,:], configs["hori_size"], configs["vert_size"], configs["vis_resolution"]
+            )
+            for k in range(len(configs["radius"]))
+        ]
         # Plot the points from the best path as green dots,
         # and the points from the other paths as gray dots
         for k in range(len(configs["radius"])):

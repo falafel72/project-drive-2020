@@ -123,9 +123,7 @@ class local_alg:
         rotation_matrix[1, 0] = -rotation_matrix[0, 1]
         rotation_matrix[1, 1] = rotation_matrix[0, 0]
         point = rotation_matrix.dot(point.T).T
-        tmp = point[:,0]
-        point[:,0] = point[:,1]
-        point[:,1] = tmp
+        point = np.flip(point, axis=1)
         return point
 
     def decide_direction(self, points, position):
@@ -208,6 +206,7 @@ class local_alg:
             np.argmin(costs),
             costs,
             relative_waypoint,
+            self.paths
         ]
 
 
