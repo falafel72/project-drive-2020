@@ -2,7 +2,7 @@ import numpy as np
 
 class car_state:
     def __init__(self):
-        self.timesteps = 150
+        self.timesteps = 100
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
@@ -55,7 +55,6 @@ class car_state:
         angular_vel += self.angular_vel
         slip_angle = np.zeros(angles.shape)
         slip_angle += self.slip_angle
-        print('decider')
         for i in range(self.timesteps):
             #Decide on the steering angle velocity,
             #the steering angle, the acceleration,
@@ -125,7 +124,7 @@ class car_state:
             rear_val = self.g * self.l_r - accel_nk * self.h_cg
             front_val = self.g * self.l_f + accel_nk * self.h_cg
 
-            theta_double_dot = (self.mu * self.mass / (self.i_z * self.wheelbase)) * (self.l_f * self.cs_f * steer_angle_nk * rear_val + slip_angle_nk * (self.l_r * self.cs_r * front_val - self.l_f * self.cs_f * rear_val)) - vel_ratio * ((self.l_f ** 2) * self.cs_f * rear_val + (self.l_r ** 2) * self.cs_r * front_val)
+            theta_double_dot = (self.mu * self.mass / (self.i_z * self.wheelbase)) * (self.l_f * self.cs_f * steer_angle_nk * rear_val + slip_angle_nk * (self.l_r * self.cs_r * front_val - self.l_f * self.cs_f * rear_val) - vel_ratio * ((self.l_f ** 2) * self.cs_f * rear_val + (self.l_r ** 2) * self.cs_r * front_val))
             slip_angle_dot = np.multiply(first_term, self.cs_f * rear_val * steer_angle_nk - slip_angle_nk * (self.cs_r * front_val + self.cs_f * rear_val)) + vel_ratio * (self.cs_r * self.l_r * front_val - self.cs_f * self.l_f * rear_val) - angular_vel_nk
 
             #Update positional variables
@@ -138,13 +137,8 @@ class car_state:
             slip_angle[nk] += slip_angle_dot * self.time_delta
 
             #Clip velocity and steering angle values
-            np.clip(velocity, -self.max_speed, self.max_speed)
-            np.clip(steer_angle, -self.max_steering_angle, self.max_steering_angle)
-
-            print(theta_double_dot[4])
-            print(angular_vel[4])
-            print(slip_angle[4])
-            print('step')
+            velocity = np.clip(velocity, -self.max_speed, self.max_speed)
+            steer_angle = np.clip(steer_angle, -self.max_steering_angle, self.max_steering_angle)
 
             #Add the x and y positions
             all_pos[:,i,0] = x
