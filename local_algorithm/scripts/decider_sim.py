@@ -22,16 +22,16 @@ from path_planning.utils.pid_controllers import PIDController
 from tf import ExtrapolationException, LookupException, TransformListener
 
 # PID control speed constant
-MAX_SPEED = 4
+MAX_SPEED = 3.3
 SPEED_CONST = 2
 # Steering angle limitation for PID controller
 MAX_ANGLE = math.pi / 6
 MIN_ANGLE = -math.pi / 6
 # PID constants 
 PID_CONST = [
-    MAX_ANGLE/180 ,
-    MAX_ANGLE/1800,
-    MAX_ANGLE*1,
+    MAX_ANGLE/720 * MAX_SPEED ,
+    MAX_ANGLE/1600 / MAX_SPEED,
+    MAX_ANGLE* 3 * MAX_SPEED,
 ]
 # TF frame for the car and the map
 CAR_FRAME = "ego_racecar/base_link"
@@ -60,8 +60,6 @@ indices = []
 count = 0
 newest_pos = np.zeros(3)
 
-# Steering angle
-steer_angle = 0.0
 # Turning rate in #adjustment/steering
 STEER_SPEED = 0.01
 # Read the config file to obtain the radii
@@ -81,7 +79,6 @@ listener = None
 
 
 def callback(data, IO):
-    global steer_angle
     IO[2] += 1
     if not IO[2] % 10 == 0:
         return
@@ -90,12 +87,6 @@ def callback(data, IO):
     # tmp is the waypoint visualization
     # this is not used here
     [angle, index, cur_costs, tmp] = IO[0].decide_direction(cur_points, IO[3])
-    if steer_angle < angle:
-        steer_angle += STEER_SPEED
-    elif steer_angle > angle:
-        steer_angle -= STEER_SPEED
-    else:
-        steer_angle = angle
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "No visualization"
@@ -113,7 +104,6 @@ def callback_pid(data, IO):
         IO (list): additional parameters for the callback:
         [PID controller, driver publisher]
     """
-    global steer_angle
     # get the current position and rotation from odometry
     current_pose = [
         data.pose.pose.position.x,
@@ -130,8 +120,8 @@ def callback_pid(data, IO):
     now = rospy.Time.now()
     now = now.secs + now.nsecs * (10 ** -9)
     # the change of turning angle per iteration
-    angle_change = IO[0].steer_angle_velocity(current_pose, current_rotation, now)
-    steer_angle += angle_change
+    IO[0].steer_angle_velocity(current_pose, current_rotation, now)
+    angle_change = IO[0].turning_angle
     # limit the steering angle
     if angle_change > MAX_ANGLE:
         angle_change = MAX_ANGLE
@@ -143,7 +133,10 @@ def callback_pid(data, IO):
     message.drive.steering_angle = angle_change
     message.drive.speed = MAX_SPEED - SPEED_CONST* abs(angle_change)
     IO[1].publish(message)
-    print("steer/steer v:" + str(steer_angle) + str(angle_change), end="\r")
+    if not IO[0].turning_assist_on:
+        print("Steer angle:" + str(angle_change), end="\r")
+    else:
+        print("Running Turning Assist! Turnig with:" + str(angle_change))
 
 
 def callback_vis(data, IO):
@@ -339,10 +332,10 @@ def handle(visualize, opponent, frame_rate, pid):
     # get initial time to setup the pid controller
     init_time = rospy.Time.now().secs + rospy.Time.now().nsecs * (10 ** -9)
     # set pit controller
-    pid_driver = PIDController(PID_CONST, init_time, way_point_coord)
+    pid_driver = PIDController(MAX_SPEED,MAX_ANGLE,PID_CONST, init_time, way_point_coord)
     decider = local_alg("./config.json")
     decider.generate_paths()
-    print(frame_rate)
+    # print(frame_rate)
     FRAME_RATE = frame_rate
     if not opponent:
         CONTROL_TOPIC = "/drive"
