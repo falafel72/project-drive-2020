@@ -27,7 +27,7 @@ SPEED_CONST = 2
 # Steering angle limitation for PID controller
 MAX_ANGLE = math.pi / 6
 MIN_ANGLE = -math.pi / 6
-# PID constants 
+# PID constants
 PID_CONST = [
     MAX_ANGLE/720 * MAX_SPEED ,
     MAX_ANGLE/1600 / MAX_SPEED,
@@ -46,11 +46,11 @@ CONFIG_FILE = "./config.json"
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
 # These are set via command line
-# FRAME_RATE = 10
-# CONTROL_TOPIC = "/drive"
-# LASER_TOPIC = "/scan"
-# ODOM_TOPIC = "/odom"
-# PUBLISH_PATH = True
+FRAME_RATE = 10
+CONTROL_TOPIC = "/drive"
+LASER_TOPIC = "/scan"
+ODOM_TOPIC = "/odom"
+PUBLISH_PATH = True
 # PID drive publisher
 pid_pub = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=10)
 points = []
