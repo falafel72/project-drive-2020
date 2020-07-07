@@ -158,12 +158,12 @@ def callback_vis(data, IO):
         return
     cur_points = laser_parser(data)
     # index is the index of the best path
-    [angle, index, cur_costs, waypoint, paths] = IO[0].decide_direction(cur_points, IO[3])
+    [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(cur_points, IO[3])
     # Save the laser scan points for visualization
     points.append(cur_points)
     costs.append(cur_costs)
     indices.append(index)
-    relative_waypoints.append(waypoint)
+    relative_waypoints.append(waypoints)
     predicted_paths.append(paths)
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
@@ -280,16 +280,14 @@ def output_video():
                 frame[paths[k][:, 1], paths[k][:, 0], 2] = 0
         # If any waypoints are present, plot them
         if flag:
-            waypoint = np.zeros((1, 2))
-            waypoint[0, :] = relative_waypoints[i]
-            waypoint = prepare_points(
-                waypoint,
+            cur_waypoints = prepare_points(
+                relative_waypoints[i],
                 configs["hori_size"],
                 configs["vert_size"],
                 configs["vis_resolution"],
             )
-            if waypoint.shape[0] == 1:
-                frame[waypoint[0, 1], waypoint[0, 0], 1] = 0
+            for i in range(cur_waypoints.shape[0]):
+                frame[cur_waypoints[i, 1], cur_waypoints[i ,0], 1] = 0
         # Actually output the frame
         video_out.write(frame)
     video_out.release()

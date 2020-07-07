@@ -43,6 +43,7 @@ class local_alg:
             self.waypoints = np.asarray(configs["waypoints"])
             self.waypoints = self.waypoints.astype("float64")
             self.waypoint_weights = np.asarray(configs["waypoint_weights"])
+            self.num_waypoints = configs["num_waypoints"]
             # The distance at which to switch to the next waypoint
             # May also include distance switching
             self.next_thresh = np.asarray(configs["thresholds"])
@@ -166,17 +167,24 @@ class local_alg:
                 relative_waypoint = self.transform_to_local(
                     cur_waypoint, position
                 )
-                distance = np.linalg.norm(relative_waypoint, ord=2)
+            # Gather multiple waypoints
+            cur_waypoints = np.zeros((self.num_waypoints,2))
+            waypoint_indices = []
+            k = self.cur_waypoint
+            for i in range(self.num_waypoints):
+                cur_waypoints[i,:] = self.waypoints[k]
+                waypoint_indices.append(k)
+                k+=1
+                k%=len(self.waypoints)
+            cur_waypoints = self.transform_to_local(cur_waypoints, position)
             # Add costs based on minimum distance of
             # each candidate to the next waypoint
             for i in range(num_candidates):
-                if distance < 1:
-                    distance = 1
-                costs[i] += (
-                    ((self.paths[i] - relative_waypoint) ** 2).sum(axis=1).min()
-                    * self.waypoint_weights[self.cur_waypoint]
-                    / distance
-                )
+                for k in range(self.num_waypoints):
+                    costs[i] += (
+                        ((self.paths[i] - cur_waypoints[k,:]) ** 2).sum(axis=1).min()
+                        * self.waypoint_weights[waypoint_indices[k]]
+                    )
         else:
             # Currently, the laser scans are not considered at all
             # when running in waypoint mode. This is temporary.
@@ -207,7 +215,7 @@ class local_alg:
             self.angles[np.argmin(costs)],
             np.argmin(costs),
             costs,
-            relative_waypoint,
+            cur_waypoints,
             self.paths
         ]
 
