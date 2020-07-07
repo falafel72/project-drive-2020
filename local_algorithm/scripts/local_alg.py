@@ -198,6 +198,8 @@ class local_alg:
                         * self.length_weights[k]
                         * 0.2
                     )
+        # Add current steering angle to simulator
+        self.simulator.steer_angle = self.angles[np.argmin(costs)]
         # Return the relative waypoint for visualization.
         # This is still returned when visualization is not on.
         # Not the most elegant design here

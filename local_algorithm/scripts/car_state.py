@@ -125,7 +125,7 @@ class car_state:
             front_val = self.g * self.l_f + accel_nk * self.h_cg
 
             theta_double_dot = (self.mu * self.mass / (self.i_z * self.wheelbase)) * (self.l_f * self.cs_f * steer_angle_nk * rear_val + slip_angle_nk * (self.l_r * self.cs_r * front_val - self.l_f * self.cs_f * rear_val) - vel_ratio * ((self.l_f ** 2) * self.cs_f * rear_val + (self.l_r ** 2) * self.cs_r * front_val))
-            slip_angle_dot = np.multiply(first_term, self.cs_f * rear_val * steer_angle_nk - slip_angle_nk * (self.cs_r * front_val + self.cs_f * rear_val)) + vel_ratio * (self.cs_r * self.l_r * front_val - self.cs_f * self.l_f * rear_val) - angular_vel_nk
+            slip_angle_dot = np.multiply(first_term, self.cs_f * rear_val * steer_angle_nk - slip_angle_nk * (self.cs_r * front_val + self.cs_f * rear_val) + vel_ratio * (self.cs_r * self.l_r * front_val - self.cs_f * self.l_f * rear_val)) - angular_vel_nk
 
             #Update positional variables
             x[nk] += x_dot * self.time_delta

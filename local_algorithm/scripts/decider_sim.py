@@ -325,7 +325,9 @@ def save_odom(data, IO):
         actual_direction = math.atan2(newest_pos[1] - prev_pos[1],
                 newest_pos[0] - prev_pos[0])
         slip_angle = actual_direction - prev_pos[2]
-        decider.simulator.slip_angle = min(max(slip_angle, -1), 1)
+        if(abs(slip_angle)>0.7):
+            slip_angle = 0
+        decider.simulator.slip_angle = slip_angle
 
 
 """
