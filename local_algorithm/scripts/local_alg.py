@@ -44,6 +44,7 @@ class local_alg:
             self.waypoints = self.waypoints.astype("float64")
             self.waypoint_weights = np.asarray(configs["waypoint_weights"])
             self.num_waypoints = configs["num_waypoints"]
+            self.waypoint_mult = np.asarray(configs["waypoint_multipliers"])
             # The distance at which to switch to the next waypoint
             # May also include distance switching
             self.next_thresh = np.asarray(configs["thresholds"])
@@ -184,6 +185,7 @@ class local_alg:
                     costs[i] += (
                         ((self.paths[i] - cur_waypoints[k,:]) ** 2).sum(axis=1).min()
                         * self.waypoint_weights[waypoint_indices[k]]
+                        * self.waypoint_mult[k]
                     )
         else:
             # Currently, the laser scans are not considered at all

@@ -88,12 +88,12 @@ def callback(data, IO):
     # tmp is the waypoint visualization
     # this is not used here
     [angle, index, cur_costs, tmp1, tmp2] = IO[0].decide_direction(cur_points, IO[3])
-    if steer_angle < angle:
-        steer_angle += STEER_SPEED
-    elif steer_angle > angle:
-        steer_angle -= STEER_SPEED
-    else:
-        steer_angle = angle
+    #if steer_angle < angle:
+    #    steer_angle += STEER_SPEED
+    #elif steer_angle > angle:
+    #    steer_angle -= STEER_SPEED
+    #else:
+    #    steer_angle = angle
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "No visualization"
