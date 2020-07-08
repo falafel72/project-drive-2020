@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from os import path
 from distance_funcs import *
+from car_state import *
 import json
 import math
 import numpy as np
@@ -24,6 +25,8 @@ class local_alg:
             self.length_exp = configs["length_exp"]
             self.dis_threshold = configs["dis_threshold"]
             self.wheel_base = configs["wheel_base"]
+            self.speeds = configs["speeds"]
+            self.speeds = np.asarray(self.speeds)
         except KeyError as e:
             print("The config file is incomplete, missing " + e.args[0])
             raise e
@@ -40,6 +43,8 @@ class local_alg:
             self.waypoints = np.asarray(configs["waypoints"])
             self.waypoints = self.waypoints.astype("float64")
             self.waypoint_weights = np.asarray(configs["waypoint_weights"])
+            self.num_waypoints = configs["num_waypoints"]
+            self.waypoint_mult = np.asarray(configs["waypoint_multipliers"])
             # The distance at which to switch to the next waypoint
             # May also include distance switching
             self.next_thresh = np.asarray(configs["thresholds"])
@@ -63,6 +68,9 @@ class local_alg:
             else:
                 angle = 0
             self.angles.append(angle)
+        self.angles = np.asarray(self.angles)
+        # Initiate the simulator
+        self.simulator = car_state()
         # Gets the importance array, which gives importance based on
         # how far each point is from the car
         self.length_weights = length_weight(self.num_steps, self.length_exp)
@@ -108,23 +116,25 @@ class local_alg:
     def transform_to_local(self, point, position):
         point = np.copy(point)
         # Translation
-        point[0] -= position[0]
-        point[1] -= position[1]
+        point[:,0] -= position[0]
+        point[:,1] -= position[1]
         # Rotate clockwise by angle of position[2]
         rotation_matrix = np.zeros((2, 2))
         rotation_matrix[0, 0] = math.cos(position[2])
         rotation_matrix[0, 1] = math.sin(position[2])
         rotation_matrix[1, 0] = -rotation_matrix[0, 1]
         rotation_matrix[1, 1] = rotation_matrix[0, 0]
-        point = rotation_matrix.dot(point)
-        tmp = point[0]
-        point[0] = point[1]
-        point[1] = tmp
+        point = rotation_matrix.dot(point.T).T
+        point = np.flip(point, axis=1)
         return point
 
     def decide_direction(self, points, position):
-        # Points is the list of obstacle points
+        # Predict the paths
         num_candidates = len(self.candidate_rs)
+        self.paths = self.simulator.predict_state(self.angles, self.speeds)
+        for i in range(num_candidates):
+            self.paths[i,:,:] = self.transform_to_local(self.paths[i,:,:], position)
+        # Points is the list of obstacle points
         costs = np.zeros(num_candidates)
         if self.sim_flag:
             tmp_points = np.zeros(points.shape)
@@ -143,8 +153,10 @@ class local_alg:
         if self.navi_mode:
             # Check if the current waypoint is reached
             # switch to next waypoint if necessary
+            cur_waypoint = np.zeros((1,2))
+            cur_waypoint[0,:] = self.waypoints[self.cur_waypoint]
             relative_waypoint = self.transform_to_local(
-                self.waypoints[self.cur_waypoint], position
+                cur_waypoint, position
             )
             distance = np.linalg.norm(relative_waypoint, ord=2)
             if distance < self.next_thresh[self.cur_waypoint]:
@@ -152,41 +164,51 @@ class local_alg:
                 self.cur_waypoint += 1
                 if self.cur_waypoint == len(self.waypoints):
                     self.cur_waypoint = 0
+                cur_waypoint[0,:] = self.waypoints[self.cur_waypoint]
                 relative_waypoint = self.transform_to_local(
-                    self.waypoints[self.cur_waypoint], position
+                    cur_waypoint, position
                 )
-                distance = np.linalg.norm(relative_waypoint, ord=2)
+            # Gather multiple waypoints
+            cur_waypoints = np.zeros((self.num_waypoints,2))
+            waypoint_indices = []
+            k = self.cur_waypoint
+            for i in range(self.num_waypoints):
+                cur_waypoints[i,:] = self.waypoints[k]
+                waypoint_indices.append(k)
+                k+=1
+                k%=len(self.waypoints)
+            cur_waypoints = self.transform_to_local(cur_waypoints, position)
             # Add costs based on minimum distance of
             # each candidate to the next waypoint
             for i in range(num_candidates):
-                if distance < 1:
-                    distance = 1
-                costs[i] += (
-                    ((self.paths[i] - relative_waypoint) ** 2).sum(axis=1).min()
-                    * self.waypoint_weights[self.cur_waypoint]
-                    / distance
-                )
-        else:
-            # Currently, the laser scans are not considered at all
-            # when running in waypoint mode. This is temporary.
-            for i in range(num_candidates):
-                # Each path
-                for k in range(self.num_steps):
-                    # Each point in the path
+                for k in range(self.num_waypoints):
                     costs[i] += (
-                        sum(
-                            distance_score(
-                                np.sqrt(
-                                    np.square(points[:, 0] - self.paths[i, k, 0])
-                                    + np.square(points[:, 1] - self.paths[i, k, 1])
-                                ),
-                                self.dis_exp,
-                                self.dis_threshold,
-                            )
-                        )
-                        * self.length_weights[k]
-                        * 0.2
+                        ((self.paths[i] - cur_waypoints[k,:]) ** 2).sum(axis=1).min()
+                        * self.waypoint_weights[waypoint_indices[k]]
+                        * self.waypoint_mult[k]
                     )
+        # Currently, the laser scans are not considered at all
+        # when running in waypoint mode. This is temporary.
+        for i in range(num_candidates):
+            # Each path
+            for k in range(self.num_steps):
+                # Each point in the path
+                costs[i] += (
+                    sum(
+                        distance_score(
+                            np.sqrt(
+                                np.square(points[:, 0] - self.paths[i, k, 0])
+                                + np.square(points[:, 1] - self.paths[i, k, 1])
+                            ),
+                            self.dis_exp,
+                            self.dis_threshold,
+                        )
+                    )
+                    * self.length_weights[k]
+                    * 0.1
+                )
+        # Add current steering angle to simulator
+        self.simulator.steer_angle = self.angles[np.argmin(costs)]
         # Return the relative waypoint for visualization.
         # This is still returned when visualization is not on.
         # Not the most elegant design here
@@ -194,7 +216,8 @@ class local_alg:
             self.angles[np.argmin(costs)],
             np.argmin(costs),
             costs,
-            relative_waypoint,
+            cur_waypoints,
+            self.paths
         ]
 
 

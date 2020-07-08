@@ -63,6 +63,7 @@ points = []
 relative_waypoints = []
 costs = []
 indices = []
+predicted_paths = []
 count = 0
 newest_pos = np.zeros(3)
 
@@ -87,13 +88,19 @@ listener = None
 
 def callback(data, IO):
     IO[2] += 1
-    if not IO[2] % 10 == 0:
-        return
+    #if not IO[2] % 10 == 0:
+    #    return
     cur_points = laser_parser(data)
     # index is the index of the best path
     # tmp is the waypoint visualization
     # this is not used here
-    [angle, index, cur_costs, tmp] = IO[0].decide_direction(cur_points, IO[3])
+    [angle, index, cur_costs, tmp1, tmp2] = IO[0].decide_direction(cur_points, IO[3])
+    #if steer_angle < angle:
+    #    steer_angle += STEER_SPEED
+    #elif steer_angle > angle:
+    #    steer_angle -= STEER_SPEED
+    #else:
+    #    steer_angle = angle
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "No visualization"
@@ -156,16 +163,17 @@ def callback_vis(data, IO):
         Saves the laser scan and waypoints
     """
     IO[2] += 1
-    if not IO[2] % 10 == 0:
-        return
     cur_points = laser_parser(data)
     # index is the index of the best path
-    [angle, index, cur_costs, waypoint] = IO[0].decide_direction(cur_points, IO[3])
+    [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(cur_points, IO[3])
     # Save the laser scan points for visualization
+    #if not IO[2] % 10 == 0:
+    #    return
     points.append(cur_points)
     costs.append(cur_costs)
     indices.append(index)
-    relative_waypoints.append(waypoint)
+    relative_waypoints.append(waypoints)
+    predicted_paths.append(paths)
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "Visualized"
@@ -246,15 +254,6 @@ def output_video():
     # Calculate the video shape
     w = int(configs["hori_size"] * 2 / configs["vis_resolution"]) + 1
     h = int(configs["hori_size"] / configs["vis_resolution"]) + 1
-    # Preprocess the path points
-    decider = local_alg(CONFIG_FILE)
-    decider.generate_paths()
-    paths = [
-        prepare_points(
-            path, configs["hori_size"], configs["vert_size"], configs["vis_resolution"]
-        )
-        for path in decider.paths
-    ]
     # Declare video output
     video_out = cv2.VideoWriter(
         video_output, cv2.VideoWriter_fourcc("M", "J", "P", "G"), FRAME_RATE, (w, h)
@@ -272,6 +271,13 @@ def output_video():
             configs["vis_resolution"],
         )
         frame[points_pixel[:, 1], points_pixel[:, 0], :] = 0
+        #Process the paths from this frame
+        paths = [
+            prepare_points(
+                predicted_paths[i][k,:], configs["hori_size"], configs["vert_size"], configs["vis_resolution"]
+            )
+            for k in range(len(configs["radius"]))
+        ]
         # Plot the points from the best path as green dots,
         # and the points from the other paths as gray dots
         for k in range(len(configs["radius"])):
@@ -283,16 +289,14 @@ def output_video():
                 frame[paths[k][:, 1], paths[k][:, 0], 2] = 0
         # If any waypoints are present, plot them
         if flag:
-            waypoint = np.zeros((1, 2))
-            waypoint[0, :] = relative_waypoints[i]
-            waypoint = prepare_points(
-                waypoint,
+            cur_waypoints = prepare_points(
+                relative_waypoints[i],
                 configs["hori_size"],
                 configs["vert_size"],
                 configs["vis_resolution"],
             )
-            if waypoint.shape[0] == 1:
-                frame[waypoint[0, 1], waypoint[0, 0], 1] = 0
+            for i in range(cur_waypoints.shape[0]):
+                frame[cur_waypoints[i, 1], cur_waypoints[i ,0], 1] = 0
         # Actually output the frame
         video_out.write(frame)
     video_out.release()
@@ -305,7 +309,10 @@ def output_video():
 """
 
 
-def save_odom(data, newest_pos):
+def save_odom(data, IO):
+    newest_pos = IO[0]
+    decider = IO[1]
+    prev_pos = np.copy(newest_pos)
     newest_pos[0] = data.pose.pose.position.x
     newest_pos[1] = data.pose.pose.position.y
     # The third element is the rotation around
@@ -313,6 +320,21 @@ def save_odom(data, newest_pos):
     quaternion = data.pose.pose.orientation
     quaternion = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
     newest_pos[2] = euler_from_quaternion(quaternion)[2]
+    # Save the position to the decider simulator
+    decider.simulator.x = newest_pos[0]
+    decider.simulator.y = newest_pos[1]
+    decider.simulator.theta = newest_pos[2]
+    decider.simulator.velocity = data.twist.twist.linear.x
+    decider.simulator.angular_vel = data.twist.twist.angular.z
+    # Find the actual direction
+    # Do not update if newest_pos had not changed
+    if(not np.all(np.equal(prev_pos, newest_pos))):
+        actual_direction = math.atan2(newest_pos[1] - prev_pos[1],
+                newest_pos[0] - prev_pos[0])
+        slip_angle = actual_direction - prev_pos[2]
+        if(abs(slip_angle)>0.7):
+            slip_angle = 0
+        decider.simulator.slip_angle = slip_angle
 
 
 def pid_handle():
@@ -336,6 +358,35 @@ def pid_handle():
         callback_pid,
         callback_args=[pid_driver, pid_pub, point_export],
     )
+    rospy.spin()
+
+def cost_handle(visualize, opponent, frame_rate):
+    rospy.init_node("local_algorithm", anonymous=True)
+    decider = local_alg(CONFIG_FILE)
+    announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
+    point_export = rospy.Publisher(PATH_TOPIC, Float32MultiArray, queue_size=2)
+    FRAME_RATE = frame_rate
+    if visualize:
+        visualize = 0
+        rospy.Subscriber(
+            LASER_TOPIC,
+            LaserScan,
+            callback_vis,
+            [decider, announcer, visualize, newest_pos, point_export],
+        )
+        # Subscribe to the odom topic and save the newest position
+        # whenever one is published
+        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
+        rospy.on_shutdown(output_video)
+    else:
+        count = 0
+        rospy.Subscriber(
+            LASER_TOPIC,
+            LaserScan,
+            callback,
+            [decider, announcer, count, newest_pos, point_export],
+        )
+        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
     rospy.spin()
 
 
@@ -393,7 +444,7 @@ def handle(visualize, opponent, frame_rate, pid):
         )
         # Subscribe to the odom topic and save the newest position
         # whenever one is published
-        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, newest_pos)
+        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
         rospy.on_shutdown(output_video)
     elif pid:
         # point_export was added as an attempt to visualize path, but failed at this moment
@@ -411,7 +462,7 @@ def handle(visualize, opponent, frame_rate, pid):
             callback,
             [decider, announcer, count, newest_pos, point_export],
         )
-        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, newest_pos)
+        rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
     rospy.spin()
     # if(not visualize==-1):
     #    output_video()

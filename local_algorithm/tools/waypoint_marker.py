@@ -43,6 +43,7 @@ while True:
     cv2.circle(image, origin, radius=3, color=(0, 225, 0), thickness=3)
     for coords in vis_waypoints:
         cv2.circle(image, coords, radius=2, color=(225, 0, 0), thickness=2)
+        local_algorithm/tools/waypoint_marker.py
 
 print("")
 print("Final waypoints are: " + str(waypoints))

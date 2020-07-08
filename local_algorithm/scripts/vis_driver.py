@@ -1,3 +1,4 @@
+#! /usr/bin/env python
 from time import *
 import os
 
@@ -32,7 +33,7 @@ CONFIG_FILE = os.path.join(
 config_file = open(CONFIG_FILE)
 configs = json.load(config_file)
 config_file.close()
-PATH = configs["test_wp"]
+PATH = configs["waypoints"]
 print(PATH)
 # pass updated angle path for marker publisher
 angle_path = None
