@@ -81,8 +81,8 @@ listener = None
 
 def callback(data, IO):
     IO[2] += 1
-    if not IO[2] % 10 == 0:
-        return
+    #if not IO[2] % 10 == 0:
+    #    return
     cur_points = laser_parser(data)
     # index is the index of the best path
     # tmp is the waypoint visualization
@@ -156,12 +156,12 @@ def callback_vis(data, IO):
         Saves the laser scan and waypoints
     """
     IO[2] += 1
-    if not IO[2] % 10 == 0:
-        return
     cur_points = laser_parser(data)
     # index is the index of the best path
     [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(cur_points, IO[3])
     # Save the laser scan points for visualization
+    #if not IO[2] % 10 == 0:
+    #    return
     points.append(cur_points)
     costs.append(cur_costs)
     indices.append(index)
