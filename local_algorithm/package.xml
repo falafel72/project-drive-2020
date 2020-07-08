@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>local_algorithm</name>
-  <version>0.0.0</version>
+  <version>0.0.1</version>
   <description>The local_algorithm package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
@@ -51,14 +51,25 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
   <build_depend>rospy</build_depend>
-  <build_depend>std_msgs</build_depend>
+  <build_depend>tf</build_depend>
   <build_export_depend>roscpp</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
-  <build_export_depend>std_msgs</build_export_depend>
+
+  <build_export_depend>tf</build_export_depend>
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
 
+  <exec_depend>tf</exec_depend>
+  <exec_depend>python-numpy</exec_depend>
+  <exec_depend>python-opencv</exec_depend>
+  <exec_depend>python-click</exec_depend>
+  <exec_depend>python-sklearn</exec_depend>
+
+  <depend>std_msgs</depend>
+  <depend>ackermann_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>visualization_msgs</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

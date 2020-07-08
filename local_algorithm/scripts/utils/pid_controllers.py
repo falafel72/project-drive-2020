@@ -135,6 +135,7 @@ class PIDController:
             self.time = curr_time
             # proportional term, modified to sqrt rather than linear
             p_term = math.pow(self.car_state[0] * self.p, 1.0 / 3)
+            p_term = self.car_state[0] * self.p
             # integral term
             i_term = self.i_last + (self.car_state[0]) * time_diff * self.i
             if i_term >= I_MAX:

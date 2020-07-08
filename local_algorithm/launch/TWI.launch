@@ -1,0 +1,4 @@
+<launch>
+  <node pkg="local_algorithm" name="main" type="main.py"/>
+  <node pkg="local_algorithm" name="vis_driver" type="vis_driver.py"/>
+</launch>

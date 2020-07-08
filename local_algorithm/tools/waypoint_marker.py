@@ -7,18 +7,18 @@ waypoints = []
 vis_waypoints = []
 # origin of the car
 
-image = cv2.imread(
-    "./berlin.png"
-)
-origin = (232,image.shape[1]-530)
+image = cv2.imread("./pid_test.png")
+print(image.shape)
+origin = (232, image.shape[1] - 530)
+
 
 def click_and_crop(event, x, y, flags, param):
     # grab references to the global variables
     global waypoints
     # if the left mouse button was clicked, record the starting (x, y) coordinate
     if event == cv2.EVENT_LBUTTONDOWN:
-        waypoints.append([x, image.shape[1]-y])
-        vis_waypoints.append((x,y))
+        waypoints.append([x, image.shape[1] - y])
+        vis_waypoints.append((x, y))
 
 clone = image.copy()
 cv2.namedWindow("image")
@@ -35,15 +35,14 @@ while True:
         break
     # if pressed r, removed the last input
     if key == ord("r"):
-        if (len(waypoints) > 0):
+        if len(waypoints) > 0:
             waypoints.pop()
             vis_waypoints.pop()
-            image = cv2.imread("./berlin.png")
+            image = cv2.imread("./pid_test.png")
             print("\r")
-    cv2.circle(image,origin,radius=3,color=(0,225,0),thickness=3)
+    cv2.circle(image, origin, radius=3, color=(0, 225, 0), thickness=3)
     for coords in vis_waypoints:
         cv2.circle(image, coords, radius=2, color=(225, 0, 0), thickness=2)
-    print("Current waypoints" + str(waypoints),end="\r")
 
 print("")
 print("Final waypoints are: " + str(waypoints))

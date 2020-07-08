@@ -1,4 +1,5 @@
 from time import *
+import os
 
 import numpy as np
 import rospy
@@ -12,6 +13,7 @@ from utils.easy_map import grid_map
 from utils.rviz_visualize import *
 import json
 
+origin_pub = rospy.Publisher("/origin", MarkerArray, queue_size=1)
 # The map that is to be used for path planning
 MASTER_MAP = grid_map()
 # Angle topic
@@ -24,11 +26,13 @@ path_pub = rospy.Publisher("/path_vis", MarkerArray, queue_size=3)
 # Angle choice publisher
 angle_pub = rospy.Publisher("/steer_angle_vis", MarkerArray, queue_size=3)
 # Load waypoints from config
-CONFIG_FILE = "../config.json"
+CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "configs/config.json"
+)
 config_file = open(CONFIG_FILE)
 configs = json.load(config_file)
 config_file.close()
-PATH = configs["waypoints"]
+PATH = configs["test_wp"]
 print(PATH)
 # pass updated angle path for marker publisher
 angle_path = None
@@ -51,10 +55,12 @@ if __name__ == "__main__":
     rospy.init_node("path_constructor", anonymous=True)
     MASTER_MAP.intial_state_listener("/map", "/odom")
     path_vis = []
+    origin = markerize_points("map", [[0.0, 0.0, 0.0]])
     for i in PATH:
         path_vis.append(MASTER_MAP.grid_to_coord(i))
     to_pub = markerize_path("map", path_vis)
     while not rospy.is_shutdown():
+        origin_pub.publish(origin)
         path_pub.publish(to_pub)
     # Listen for transformation boardcast
     """

@@ -1,37 +1,40 @@
 #!/usr/bin/env python
 from __future__ import print_function
-import rospy
-import numpy as np
-import time
-import sys
-import json
-import cv2
-import math
-import click
-from local_alg import local_alg
-from parser import laser_parser
-from ackermann_msgs.msg import AckermannDriveStamped
-from sensor_msgs.msg import LaserScan
-from nav_msgs.msg import Odometry
-from tf.transformations import euler_from_quaternion
-from std_msgs.msg import *
 
-from path_planning.utils.easy_map import grid_map
-import path_planning.utils.transform as car_tf
-from path_planning.utils.pid_controllers import PIDController
+import os
+import json
+import math
+import sys
+import time
+from parser import laser_parser
+
+import click
+import numpy as np
+import rospy
+from ackermann_msgs.msg import AckermannDriveStamped
+from nav_msgs.msg import Odometry
+from sensor_msgs.msg import LaserScan
+from std_msgs.msg import *
 from tf import ExtrapolationException, LookupException, TransformListener
+from tf.transformations import euler_from_quaternion
+
+import cv2
+import utils.transform as car_tf
+from local_alg import local_alg
+from utils.easy_map import grid_map
+from utils.pid_controllers import PIDController
 
 # PID control speed constant
-MAX_SPEED = 3.3
+MAX_SPEED = 4
 SPEED_CONST = 2
 # Steering angle limitation for PID controller
 MAX_ANGLE = math.pi / 6
 MIN_ANGLE = -math.pi / 6
 # PID constants
 PID_CONST = [
-    MAX_ANGLE/720 * MAX_SPEED ,
-    MAX_ANGLE/1600 / MAX_SPEED,
-    MAX_ANGLE* 3 * MAX_SPEED,
+    MAX_ANGLE / 50 * MAX_SPEED,
+    MAX_ANGLE / 1380 / MAX_SPEED,
+    MAX_ANGLE * 1.5 * MAX_SPEED,
 ]
 # TF frame for the car and the map
 CAR_FRAME = "ego_racecar/base_link"
@@ -42,7 +45,10 @@ car_rotation = [0, 0, 0, 0]
 
 # odometry topic
 ODOM_TOPIE = "/odom"
-CONFIG_FILE = "./config.json"
+CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "configs/config.json",
+)
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
 # These are set via command line
@@ -67,6 +73,7 @@ config_file = open(CONFIG_FILE)
 configs = json.load(config_file)
 # load waypoints
 WAY_POINT_GRID = configs["waypoints"]
+WAY_POINT_TEST = configs["test_wp"]
 config_file.close()
 # easy to use occupancy grid map
 MASTER_MAP = grid_map()
@@ -131,7 +138,7 @@ def callback_pid(data, IO):
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "PID"
     message.drive.steering_angle = angle_change
-    message.drive.speed = MAX_SPEED - SPEED_CONST* abs(angle_change)
+    message.drive.speed = MAX_SPEED - SPEED_CONST * abs(angle_change)
     IO[1].publish(message)
     if not IO[0].turning_assist_on:
         print("Steer angle:" + str(angle_change), end="\r")
@@ -231,7 +238,7 @@ def prepare_points(points, hori_size, vert_size, vis_resolution):
 
 def output_video():
     print("Video function")
-    config_file = "./config.json"
+    config_file = CONFIG_FILE
     video_output = "./decider_video.avi"
     config_file = open(config_file)
     configs = json.load(config_file)
@@ -240,7 +247,7 @@ def output_video():
     w = int(configs["hori_size"] * 2 / configs["vis_resolution"]) + 1
     h = int(configs["hori_size"] / configs["vis_resolution"]) + 1
     # Preprocess the path points
-    decider = local_alg("./config.json")
+    decider = local_alg(CONFIG_FILE)
     decider.generate_paths()
     paths = [
         prepare_points(
@@ -308,6 +315,30 @@ def save_odom(data, newest_pos):
     newest_pos[2] = euler_from_quaternion(quaternion)[2]
 
 
+def pid_handle():
+    """ Temporary function to cope with the keyboard input error of click
+    """
+    rospy.init_node("pid_local", anonymous=True)
+    MASTER_MAP.intial_state_listener("/map", "/odom")
+    way_point_coord = []
+    for i in WAY_POINT_GRID:
+        way_point_coord.append(MASTER_MAP.grid_to_coord(i))
+    # get initial time to setup the pid controller
+    init_time = rospy.Time.now().secs + rospy.Time.now().nsecs * (10 ** -9)
+    # set pit controller
+    pid_driver = PIDController(
+        MAX_SPEED, MAX_ANGLE, PID_CONST, init_time, way_point_coord
+    )
+    point_export = rospy.Publisher(PATH_TOPIC, Float32MultiArray, queue_size=2)
+    rospy.Subscriber(
+        ODOM_TOPIC,
+        Odometry,
+        callback_pid,
+        callback_args=[pid_driver, pid_pub, point_export],
+    )
+    rospy.spin()
+
+
 """
     Called once at the beginning
     To initialize the different publishers
@@ -327,13 +358,15 @@ def handle(visualize, opponent, frame_rate, pid):
     MASTER_MAP.intial_state_listener("/map", "/odom")
     way_point_coord = []
     # transform waypoints from grid (row, col) to coord (x,y,z)
-    for i in WAY_POINT_GRID:
+    for i in WAY_POINT_TEST:
         way_point_coord.append(MASTER_MAP.grid_to_coord(i))
     # get initial time to setup the pid controller
     init_time = rospy.Time.now().secs + rospy.Time.now().nsecs * (10 ** -9)
     # set pit controller
-    pid_driver = PIDController(MAX_SPEED,MAX_ANGLE,PID_CONST, init_time, way_point_coord)
-    decider = local_alg("./config.json")
+    pid_driver = PIDController(
+        MAX_SPEED, MAX_ANGLE, PID_CONST, init_time, way_point_coord
+    )
+    decider = local_alg(CONFIG_FILE)
     decider.generate_paths()
     # print(frame_rate)
     FRAME_RATE = frame_rate
