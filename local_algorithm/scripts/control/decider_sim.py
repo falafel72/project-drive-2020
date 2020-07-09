@@ -55,7 +55,7 @@ CONFIG_FILE = os.path.join(
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
 # These are set via command line
-FRAME_RATE = 10
+FRAME_RATE = 30
 CONTROL_TOPIC = "/drive"
 LASER_TOPIC = "/scan"
 ODOM_TOPIC = "/odom"
@@ -91,6 +91,12 @@ listener = None
 
 def callback(data, IO):
     IO[2] += 1
+    cur_time = time.time()
+    cur_secs = int(cur_time)
+    if((not data.header.stamp.secs == cur_secs) or
+        ((cur_time - cur_secs) * 1000000000
+        - data.header.stamp.nsecs > 50000000)):
+        return
     if((not IO[0].laser_on) and (IO[2]%10==0)):
         scan_callback(data)
         IO[0].check_obstacle(scanned)
@@ -167,12 +173,16 @@ def callback_vis(data, IO):
         Saves the laser scan and waypoints
     """
     IO[2] += 1
-    if(not IO[2] % 10 == 0):
+    cur_time = time.time()
+    cur_secs = int(cur_time)
+    if((not data.header.stamp.secs == cur_secs) or
+        ((cur_time - cur_secs) * 1000000000
+        - data.header.stamp.nsecs > 50000000)):
         return
     #time_1 = time.time()
     if((not IO[0].laser_on) and (IO[2]%10==0)):
         scan_callback(data)
-        IO[0].check_obstacle(scanned)
+        IO[0].check_obstacle(all_scanned)
     cur_points = laser_parser(data)
     # index is the index of the best path
     [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(
@@ -542,4 +552,4 @@ def handle(visualize, opponent, frame_rate, pid):
 if __name__ == "__main__":
     time.sleep(1)
     #handle()
-    cost_handle(True, False, 10)
+    cost_handle(True, False, 30)
