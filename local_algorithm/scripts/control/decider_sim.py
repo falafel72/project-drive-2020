@@ -25,7 +25,7 @@ from utils.easy_map import grid_map
 from utils.pid_controllers import PIDController
 
 # scanned points, used set to avoid duplicates
-scanned = set()
+all_scanned = set()
 # PID control speed constant
 MAX_SPEED = 4
 SPEED_CONST = 2
@@ -358,46 +358,50 @@ def save_odom(data, IO):
 def scan_callback(data):
     """ Callback function for laser scan topics. Transform range data to local
         coordinate of the car, then transform local coordinates to global coordinates
-        The global coordinates are stored in a global variable "scanned"
+
     Args:
         data (sensro_msgs.msg.LaserScan): Laser range scan from 2d Lidars.
     """
-    global scanned
+    global all_scanned
     local_points = laser_parser(data)
     for i in local_points:
-        new_point = (i[1], i[0])
         # ref means reflect the points, set to true base on emperical results
-        scanned.add(
+        all_scanned.add(
             tuple(
                 car_tf.tf_point(
-                    i, car_translation, car_rotation, ref=True, rot_c=0, dim3=False
+                    i,
+                    car_translation,
+                    car_rotation,
+                    quat=True,
+                    ref=True,
+                    rot_c=0,
+                    dim3=False,
                 ).tolist()
             )
         )
 
 
-def tf_listener(from_frame, to_frame):
-    """ Listens transform from one frame to another frame. This function assumes
-        That a node is initialized. An error will occur without a node. Updates
-        global variable car_rotation and car_tanslation.
+def odom_tf_callback(data):
+    """ Simple callback to get tf of the base_link of car. Update the global
+        variable car_translation and car_rotation as the car moves
 
     Args:
-        from_frame (string): frame name of frame that the transform is from
-        to_frame (string): frame name of frame that the transform is goint to
+        data (nav_msgs.msg.Odometry): odometry of the car
     """
-    global car_rotation, car_translation
-    scan_listener = TransformListener()
-    while not rospy.is_shutdown():
-        try:
-            now = rospy.Time.now()
-            scan_listener.waitForTransform(
-                from_frame, to_frame, rospy.Time(), rospy.Duration(4.0)
-            )
-            (car_translation, car_rotation) = scan_listener.lookupTransform(
-                from_frame, to_frame, rospy.Time(0)
-            )
-        except (LookupException, ExtrapolationException):
-            print("Cannot listen tf, retrying", now)
+    global car_translation, car_rotation
+    current_pose = [
+        data.pose.pose.position.x,
+        data.pose.pose.position.y,
+        data.pose.pose.position.z,
+    ]
+    current_rotation = [
+        data.pose.pose.orientation.x,
+        data.pose.pose.orientation.y,
+        data.pose.pose.orientation.z,
+        data.pose.pose.orientation.w,
+    ]
+    car_rotation = current_rotation
+    car_translation = current_pose
 
 
 def pid_handle():
@@ -423,8 +427,8 @@ def pid_handle():
         callback_pid,
         callback_args=[pid_driver, pid_pub, point_export],
     )
+    rospy.Subscriber(ODOM_TOPIC, Odometry, odom_tf_callback, queue_size=10)
     rospy.Subscriber(LASER_TOPIC, LaserScan, scan_callback, queue_size=10)
-    tf_listener(MAP_FRAME, LIDAR_FRAME)
 
 
 def cost_handle(visualize, opponent, frame_rate):
