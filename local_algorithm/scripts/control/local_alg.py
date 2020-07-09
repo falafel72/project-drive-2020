@@ -45,6 +45,10 @@ class local_alg:
             self.waypoint_weights = np.asarray(configs["waypoint_weights"])
             self.num_waypoints = configs["num_waypoints"]
             self.waypoint_mult = np.asarray(configs["waypoint_multipliers"])
+            self.laser_on = False
+            self.map_array = np.loadtxt(configs['map_txt'])
+            self.obstacle_thresh = configs['obstacle_thresh']
+            self.speeds_obstacle = np.asarray(configs['speeds_obstacle'])
             # The distance at which to switch to the next waypoint
             # May also include distance switching
             self.next_thresh = np.asarray(configs["thresholds"])
@@ -187,26 +191,27 @@ class local_alg:
                         * self.waypoint_weights[waypoint_indices[k]]
                         * self.waypoint_mult[k]
                     )
-        # Currently, the laser scans are not considered at all
-        # when running in waypoint mode. This is temporary.
-        for i in range(num_candidates):
-            # Each path
-            for k in range(self.num_steps):
-                # Each point in the path
-                costs[i] += (
-                    sum(
-                        distance_score(
-                            np.sqrt(
-                                np.square(points[:, 0] - self.paths[i, k, 0])
-                                + np.square(points[:, 1] - self.paths[i, k, 1])
-                            ),
-                            self.dis_exp,
-                            self.dis_threshold,
+        if(self.laser_on):
+            # Currently, the laser scans are not considered at all
+            # when running in waypoint mode. This is temporary.
+            for i in range(num_candidates):
+                # Each path
+                for k in range(self.num_steps):
+                    # Each point in the path
+                    costs[i] += (
+                        sum(
+                            distance_score(
+                                np.sqrt(
+                                    np.square(points[:, 0] - self.paths[i, k, 0])
+                                    + np.square(points[:, 1] - self.paths[i, k, 1])
+                                ),
+                                self.dis_exp,
+                                self.dis_threshold,
+                            )
                         )
+                        * self.length_weights[k]
+                        * 0.1
                     )
-                    * self.length_weights[k]
-                    * 0.1
-                )
         # Add current steering angle to simulator
         self.simulator.steer_angle = self.angles[np.argmin(costs)]
         # Return the relative waypoint for visualization.
@@ -219,6 +224,20 @@ class local_alg:
             cur_waypoints,
             self.paths
         ]
+
+    def check_obstacle(self, scanned):
+        total = 0
+        for point in scanned:
+            point = np.asarray(point)
+            point = (point[:2] - self.map_orig)/self.resolution
+            point = point.astype('int')
+            total += self.map_array[point[0],point[1]]
+        if(total > self.obstacle_thresh):
+            print(total)
+            self.laser_on = True
+            self.speeds = self.speeds_obstacle
+            self.next_thresh += 1
+            print('Switched to obstacle mode')
 
 
 if __name__ == "__main__":

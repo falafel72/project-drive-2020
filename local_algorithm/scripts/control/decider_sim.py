@@ -91,8 +91,9 @@ listener = None
 
 def callback(data, IO):
     IO[2] += 1
-    # if not IO[2] % 10 == 0:
-    #    return
+    if((not IO[0].laser_on) and (IO[2]%10==0)):
+        scan_callback(data)
+        IO[0].check_obstacle(scanned)
     cur_points = laser_parser(data)
     # index is the index of the best path
     # tmp is the waypoint visualization
@@ -166,6 +167,12 @@ def callback_vis(data, IO):
         Saves the laser scan and waypoints
     """
     IO[2] += 1
+    if(not IO[2] % 10 == 0):
+        return
+    #time_1 = time.time()
+    if((not IO[0].laser_on) and (IO[2]%10==0)):
+        scan_callback(data)
+        IO[0].check_obstacle(scanned)
     cur_points = laser_parser(data)
     # index is the index of the best path
     [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(
@@ -183,9 +190,11 @@ def callback_vis(data, IO):
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "Visualized"
     message.drive.steering_angle = angle
-    message.drive.speed = configs["speeds"][index]
+    message.drive.speed = IO[0].speeds[index]
     IO[1].publish(message)
     publish_points(IO[0].paths[index, :, :], IO[4])
+    #time_2 = time.time()
+    #print(time_2 - time_1)
 
 
 """
@@ -369,8 +378,8 @@ def scan_callback(data):
 
 def tf_listener(from_frame, to_frame):
     """ Listens transform from one frame to another frame. This function assumes
-        That a node is initialized. An error will occur without a node. Updates 
-        global variable car_rotation and car_tanslation. 
+        That a node is initialized. An error will occur without a node. Updates
+        global variable car_rotation and car_tanslation.
 
     Args:
         from_frame (string): frame name of frame that the transform is from
@@ -528,4 +537,5 @@ def handle(visualize, opponent, frame_rate, pid):
 
 if __name__ == "__main__":
     time.sleep(1)
-    handle()
+    #handle()
+    cost_handle(True, False, 10)
