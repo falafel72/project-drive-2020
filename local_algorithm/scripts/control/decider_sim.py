@@ -24,6 +24,8 @@ from local_alg import local_alg
 from utils.easy_map import grid_map
 from utils.pid_controllers import PIDController
 
+# scanned points, used set to avoid duplicates
+scanned = set()
 # PID control speed constant
 MAX_SPEED = 4
 SPEED_CONST = 2
@@ -37,6 +39,7 @@ PID_CONST = [
     MAX_ANGLE * 1.5 * MAX_SPEED,
 ]
 # TF frame for the car and the map
+LIDAR_FRAME = "ego_racecar/laser"
 CAR_FRAME = "ego_racecar/base_link"
 MAP_FRAME = "/map"
 # Global transformation of the car
@@ -88,18 +91,18 @@ listener = None
 
 def callback(data, IO):
     IO[2] += 1
-    #if not IO[2] % 10 == 0:
+    # if not IO[2] % 10 == 0:
     #    return
     cur_points = laser_parser(data)
     # index is the index of the best path
     # tmp is the waypoint visualization
     # this is not used here
     [angle, index, cur_costs, tmp1, tmp2] = IO[0].decide_direction(cur_points, IO[3])
-    #if steer_angle < angle:
+    # if steer_angle < angle:
     #    steer_angle += STEER_SPEED
-    #elif steer_angle > angle:
+    # elif steer_angle > angle:
     #    steer_angle -= STEER_SPEED
-    #else:
+    # else:
     #    steer_angle = angle
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
@@ -165,9 +168,11 @@ def callback_vis(data, IO):
     IO[2] += 1
     cur_points = laser_parser(data)
     # index is the index of the best path
-    [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(cur_points, IO[3])
+    [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(
+        cur_points, IO[3]
+    )
     # Save the laser scan points for visualization
-    #if not IO[2] % 10 == 0:
+    # if not IO[2] % 10 == 0:
     #    return
     points.append(cur_points)
     costs.append(cur_costs)
@@ -271,10 +276,13 @@ def output_video():
             configs["vis_resolution"],
         )
         frame[points_pixel[:, 1], points_pixel[:, 0], :] = 0
-        #Process the paths from this frame
+        # Process the paths from this frame
         paths = [
             prepare_points(
-                predicted_paths[i][k,:], configs["hori_size"], configs["vert_size"], configs["vis_resolution"]
+                predicted_paths[i][k, :],
+                configs["hori_size"],
+                configs["vert_size"],
+                configs["vis_resolution"],
             )
             for k in range(len(configs["radius"]))
         ]
@@ -296,7 +304,7 @@ def output_video():
                 configs["vis_resolution"],
             )
             for i in range(cur_waypoints.shape[0]):
-                frame[cur_waypoints[i, 1], cur_waypoints[i ,0], 1] = 0
+                frame[cur_waypoints[i, 1], cur_waypoints[i, 0], 1] = 0
         # Actually output the frame
         video_out.write(frame)
     video_out.release()
@@ -328,18 +336,66 @@ def save_odom(data, IO):
     decider.simulator.angular_vel = data.twist.twist.angular.z
     # Find the actual direction
     # Do not update if newest_pos had not changed
-    if(not np.all(np.equal(prev_pos, newest_pos))):
-        actual_direction = math.atan2(newest_pos[1] - prev_pos[1],
-                newest_pos[0] - prev_pos[0])
+    if not np.all(np.equal(prev_pos, newest_pos)):
+        actual_direction = math.atan2(
+            newest_pos[1] - prev_pos[1], newest_pos[0] - prev_pos[0]
+        )
         slip_angle = actual_direction - prev_pos[2]
-        if(abs(slip_angle)>0.7):
+        if abs(slip_angle) > 0.7:
             slip_angle = 0
         decider.simulator.slip_angle = slip_angle
+
+
+def scan_callback(data):
+    """ Callback function for laser scan topics. Transform range data to local
+        coordinate of the car, then transform local coordinates to global coordinates
+        The global coordinates are stored in a global variable "scanned"
+    Args:
+        data (sensro_msgs.msg.LaserScan): Laser range scan from 2d Lidars.
+    """
+    global scanned
+    local_points = laser_parser(data)
+    for i in local_points:
+        new_point = (i[1], i[0])
+        # ref means reflect the points, set to true base on emperical results
+        scanned.add(
+            tuple(
+                car_tf.tf_point(
+                    i, car_translation, car_rotation, ref=True, rot_c=0, dim3=False
+                ).tolist()
+            )
+        )
+
+
+def tf_listener(from_frame, to_frame):
+    """ Listens transform from one frame to another frame. This function assumes
+        That a node is initialized. An error will occur without a node. Updates 
+        global variable car_rotation and car_tanslation. 
+
+    Args:
+        from_frame (string): frame name of frame that the transform is from
+        to_frame (string): frame name of frame that the transform is goint to
+    """
+    global car_rotation, car_translation
+    scan_listener = TransformListener()
+    while not rospy.is_shutdown():
+        try:
+            now = rospy.Time.now()
+            scan_listener.waitForTransform(
+                from_frame, to_frame, rospy.Time(), rospy.Duration(4.0)
+            )
+            (car_translation, car_rotation) = scan_listener.lookupTransform(
+                from_frame, to_frame, rospy.Time(0)
+            )
+        except (LookupException, ExtrapolationException):
+            print("Cannot listen tf, retrying", now)
 
 
 def pid_handle():
     """ Temporary function to cope with the keyboard input error of click
     """
+    global car_rotation, car_translation
+    scan_listener = TransformListener()
     rospy.init_node("pid_local", anonymous=True)
     MASTER_MAP.intial_state_listener("/map", "/odom")
     way_point_coord = []
@@ -358,7 +414,9 @@ def pid_handle():
         callback_pid,
         callback_args=[pid_driver, pid_pub, point_export],
     )
-    rospy.spin()
+    rospy.Subscriber(LASER_TOPIC, LaserScan, scan_callback, queue_size=10)
+    tf_listener(MAP_FRAME, LIDAR_FRAME)
+
 
 def cost_handle(visualize, opponent, frame_rate):
     rospy.init_node("local_algorithm", anonymous=True)
