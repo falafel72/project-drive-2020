@@ -176,13 +176,13 @@ def callback_vis(data, IO):
     cur_secs = int(cur_time)
     if((not data.header.stamp.secs == cur_secs) or
         ((cur_time - cur_secs) * 1000000000
-        - data.header.stamp.nsecs > 50000000)):
+        - data.header.stamp.nsecs > 10000000)):
         return
-    #time_1 = time.time()
+    cur_points = laser_parser(data)
     if((not IO[0].laser_on) and (IO[2]%10==0)):
         scan_callback(data)
-        IO[0].check_obstacle(all_scanned)
-    cur_points = laser_parser(data)
+        IO[0].check_obstacle(cur_points, IO[3])
+    #time_1 = time.time()
     # index is the index of the best path
     [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(
         cur_points, IO[3]
@@ -336,6 +336,10 @@ def output_video():
 
 
 def save_odom(data, IO):
+    cur_time = time.time()
+    cur_secs = int(cur_time)
+    if((cur_time-cur_secs)*1000000000 - data.header.stamp.nsecs > 7000000):
+        return
     newest_pos = IO[0]
     decider = IO[1]
     prev_pos = np.copy(newest_pos)

@@ -48,6 +48,7 @@ class local_alg:
             self.laser_on = False
             self.map_array = np.loadtxt(configs['map_txt'])
             self.obstacle_thresh = configs['obstacle_thresh']
+            self.obstacle_count = 0
             self.speeds_obstacle = np.asarray(configs['speeds_obstacle'])
             # The distance at which to switch to the next waypoint
             # May also include distance switching
@@ -246,12 +247,19 @@ class local_alg:
         ]
 
     def check_obstacle(self, points, position):
-        points = transform_to_png(points, position)
+        points = self.transform_to_png(points, position)
         total = 0
         for i in range(points.shape[0]):
-            total += self.map_array[points[i,0],points[i,1]]
+            try:
+                total += self.map_array[points[i,0],points[i,1]]
+            except:
+                continue
         if(total > self.obstacle_thresh):
-            print(total)
+            self.obstacle_count += 1
+        else:
+            if(self.obstacle_count > 0):
+                self.obstacle_count -= 1
+        if(self.obstacle_count > 5):
             self.laser_on = True
             self.speeds = self.speeds_obstacle
             self.next_thresh += 1
