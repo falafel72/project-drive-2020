@@ -132,6 +132,26 @@ class local_alg:
         point = np.flip(point, axis=1)
         return point
 
+    def transform_to_png(self, points, position):
+        points = np.copy(points)
+        points = np.flip(points, axis=1)
+        # Rotate counter-clockwise by angle of position[2]
+        rotation_matrix = np.zeros((2,2))
+        rotation_matrix[0, 0] = math.cos(position[2])
+        rotation_matrix[0, 1] = -math.sin(position[2])
+        rotation_matrix[1, 0] = -rotation_matrix[0, 1]
+        rotation_matrix[1, 1] = rotation_matrix[0, 0]
+        points = rotation_matrix.dot(points.T).T
+        # Translate by the car position
+        points[:,0] += position[0]
+        points[:,1] += position[1]
+        # Translate by the map origin
+        points[:,0] -= self.map_orig[0]
+        points[:,1] -= self.map_orig[1]
+        # Scale by map resolution
+        points /= self.resolution
+        return points.astype('int')
+
     def decide_direction(self, points, position):
         # Predict the paths
         num_candidates = len(self.candidate_rs)
@@ -225,13 +245,11 @@ class local_alg:
             self.paths
         ]
 
-    def check_obstacle(self, scanned):
+    def check_obstacle(self, points, position):
+        points = transform_to_png(points, position)
         total = 0
-        for point in scanned:
-            point = np.asarray(point)
-            point = (point[:2] - self.map_orig)/self.resolution
-            point = point.astype('int')
-            total += self.map_array[point[0],point[1]]
+        for i in range(points.shape[0]):
+            total += self.map_array[points[i,0],points[i,1]]
         if(total > self.obstacle_thresh):
             print(total)
             self.laser_on = True

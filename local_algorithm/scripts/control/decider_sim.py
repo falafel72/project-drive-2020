@@ -97,10 +97,9 @@ def callback(data, IO):
         ((cur_time - cur_secs) * 1000000000
         - data.header.stamp.nsecs > 50000000)):
         return
-    if((not IO[0].laser_on) and (IO[2]%10==0)):
-        scan_callback(data)
-        IO[0].check_obstacle(scanned)
     cur_points = laser_parser(data)
+    if((not IO[0].laser_on) and (IO[2]%10==0)):
+        IO[0].check_obstacle(cur_points, IO[3])
     # index is the index of the best path
     # tmp is the waypoint visualization
     # this is not used here
