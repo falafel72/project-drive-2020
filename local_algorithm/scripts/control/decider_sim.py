@@ -8,7 +8,6 @@ import sys
 import time
 from parser import laser_parser
 
-import click
 import numpy as np
 import rospy
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -95,7 +94,7 @@ def callback(data, IO):
     cur_secs = int(cur_time)
     if((not data.header.stamp.secs == cur_secs) or
         ((cur_time - cur_secs) * 1000000000
-        - data.header.stamp.nsecs > 50000000)):
+        - data.header.stamp.nsecs > 10000000)):
         return
     cur_points = laser_parser(data)
     if((not IO[0].laser_on) and (IO[2]%10==0)):
@@ -481,11 +480,6 @@ def cost_handle(visualize, opponent, frame_rate):
 """
 
 
-@click.command()
-@click.option("--visualize", is_flag=True)
-@click.option("--opponent", is_flag=True)
-@click.option("--frame_rate", default=10)
-@click.option("--pid", is_flag=True)
 def handle(visualize, opponent, frame_rate, pid):
     global listener
     rospy.init_node("local_algorithm", anonymous=True)

@@ -46,10 +46,13 @@ class local_alg:
             self.num_waypoints = configs["num_waypoints"]
             self.waypoint_mult = np.asarray(configs["waypoint_multipliers"])
             self.laser_on = False
-            self.map_array = np.loadtxt(configs['map_txt'])
             self.obstacle_thresh = configs['obstacle_thresh']
             self.obstacle_count = 0
             self.speeds_obstacle = np.asarray(configs['speeds_obstacle'])
+            dir_name = path.abspath(__file__)
+            for i in range(3):
+                dir_name = path.dirname(dir_name)
+            self.map_array = np.loadtxt(path.join(dir_name, configs['map_txt']))
             # The distance at which to switch to the next waypoint
             # May also include distance switching
             self.next_thresh = np.asarray(configs["thresholds"])
@@ -231,7 +234,7 @@ class local_alg:
                             )
                         )
                         * self.length_weights[k]
-                        * 10
+                        * 15
                     )
         # Add current steering angle to simulator
         self.simulator.steer_angle = self.angles[np.argmin(costs)]
@@ -248,6 +251,7 @@ class local_alg:
 
     def check_obstacle(self, points, position):
         points = self.transform_to_png(points, position)
+        np.savetxt('mapped_points.txt', points)
         total = 0
         for i in range(points.shape[0]):
             try:
@@ -259,10 +263,11 @@ class local_alg:
         else:
             if(self.obstacle_count > 0):
                 self.obstacle_count -= 1
-        if(self.obstacle_count > 5):
+        if(self.obstacle_count > 3):
+            print(total)
             self.laser_on = True
             self.speeds = self.speeds_obstacle
-            self.next_thresh += 1
+            self.next_thresh += 2
             print('Switched to obstacle mode')
 
 
