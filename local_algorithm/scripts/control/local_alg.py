@@ -156,12 +156,17 @@ class local_alg:
         points /= self.resolution
         return points.astype('int')
 
-    def decide_direction(self, points, position):
+    def decide_direction(self, points, position,pid_helper):
         # Predict the paths
         num_candidates = len(self.candidate_rs)
-        self.paths = self.simulator.predict_state(self.angles, self.speeds)
-        for i in range(num_candidates):
-            self.paths[i,:,:] = self.transform_to_local(self.paths[i,:,:], position)
+        if self.laser_on:
+            self.num_steps = 30
+            self.path = self.generate_paths()
+        else:
+            self.num_steps = 150
+            self.paths = self.simulator.predict_state(self.angles, self.speeds)
+            for i in range(num_candidates):
+                self.paths[i,:,:] = self.transform_to_local(self.paths[i,:,:], position)
         # Points is the list of obstacle points
         costs = np.zeros(num_candidates)
         if self.sim_flag:
@@ -187,15 +192,15 @@ class local_alg:
                 cur_waypoint, position
             )
             distance = np.linalg.norm(relative_waypoint, ord=2)
-            if distance < self.next_thresh[self.cur_waypoint]:
-                print("Current waypoint: " + str(self.cur_waypoint))
-                self.cur_waypoint += 1
-                if self.cur_waypoint == len(self.waypoints):
-                    self.cur_waypoint = 0
-                cur_waypoint[0,:] = self.waypoints[self.cur_waypoint]
-                relative_waypoint = self.transform_to_local(
-                    cur_waypoint, position
-                )
+            self.cur_waypoint = pid_helper.current_wps[0]
+            #if distance < self.next_thresh[self.cur_waypoint]:
+            # self.cur_waypoint += 1
+            if self.cur_waypoint == len(self.waypoints):
+                self.cur_waypoint = 0
+            cur_waypoint[0,:] = self.waypoints[self.cur_waypoint]
+            relative_waypoint = self.transform_to_local(
+                cur_waypoint, position
+            )
             # Gather multiple waypoints
             cur_waypoints = np.zeros((self.num_waypoints,2))
             waypoint_indices = []

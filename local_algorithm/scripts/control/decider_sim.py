@@ -102,13 +102,8 @@ def callback(data, IO):
     # index is the index of the best path
     # tmp is the waypoint visualization
     # this is not used here
-    [angle, index, cur_costs, tmp1, tmp2] = IO[0].decide_direction(cur_points, IO[3])
-    # if steer_angle < angle:
-    #    steer_angle += STEER_SPEED
-    # elif steer_angle > angle:
-    #    steer_angle -= STEER_SPEED
-    # else:
-    #    steer_angle = angle
+    [angle, index, cur_costs, tmp1, tmp2] = IO[0].decide_direction(cur_points, IO[3],IO[5])
+    IO[5].update_current_wps(car_translation)
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "No visualization"
@@ -149,6 +144,7 @@ def callback_pid(data, IO):
         angle_change = MAX_ANGLE
     if angle_change < MIN_ANGLE:
         angle_change = MIN_ANGLE
+    IO[5].update_current_wps()
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "PID"
@@ -335,6 +331,20 @@ def output_video():
 
 
 def save_odom(data, IO):
+    global car_translation, car_rotation
+    current_pose = [
+        data.pose.pose.position.x,
+        data.pose.pose.position.y,
+        data.pose.pose.position.z,
+    ]
+    current_rotation = [
+        data.pose.pose.orientation.x,
+        data.pose.pose.orientation.y,
+        data.pose.pose.orientation.z,
+        data.pose.pose.orientation.w,
+    ]
+    car_rotation = current_rotation
+    car_translation = current_pose
     cur_time = time.time()
     cur_secs = int(cur_time)
     if((cur_time-cur_secs)*1000000000 - data.header.stamp.nsecs > 7000000):
@@ -400,20 +410,7 @@ def odom_tf_callback(data):
     Args:
         data (nav_msgs.msg.Odometry): odometry of the car
     """
-    global car_translation, car_rotation
-    current_pose = [
-        data.pose.pose.position.x,
-        data.pose.pose.position.y,
-        data.pose.pose.position.z,
-    ]
-    current_rotation = [
-        data.pose.pose.orientation.x,
-        data.pose.pose.orientation.y,
-        data.pose.pose.orientation.z,
-        data.pose.pose.orientation.w,
-    ]
-    car_rotation = current_rotation
-    car_translation = current_pose
+
 
 
 def pid_handle():
@@ -446,6 +443,16 @@ def pid_handle():
 def cost_handle(visualize, opponent, frame_rate):
     rospy.init_node("local_algorithm", anonymous=True)
     decider = local_alg(CONFIG_FILE)
+    MASTER_MAP.intial_state_listener("/map", "/odom")
+    way_point_coord = []
+    for i in WAY_POINT_GRID:
+        way_point_coord.append(MASTER_MAP.grid_to_coord(i))
+    # get initial time to setup the pid controller
+    init_time = rospy.Time.now().secs + rospy.Time.now().nsecs * (10 ** -9)
+    # use pid controller for detection of reaching waypoints
+    wp_helper = PIDController(
+        MAX_SPEED, MAX_ANGLE, PID_CONST, init_time, way_point_coord
+    )
     announcer = rospy.Publisher(CONTROL_TOPIC, AckermannDriveStamped, queue_size=2)
     point_export = rospy.Publisher(PATH_TOPIC, Float32MultiArray, queue_size=2)
     FRAME_RATE = frame_rate
@@ -455,7 +462,7 @@ def cost_handle(visualize, opponent, frame_rate):
             LASER_TOPIC,
             LaserScan,
             callback_vis,
-            [decider, announcer, visualize, newest_pos, point_export],
+            [decider, announcer, visualize, newest_pos, point_export,wp_helper],
         )
         # Subscribe to the odom topic and save the newest position
         # whenever one is published
@@ -467,7 +474,7 @@ def cost_handle(visualize, opponent, frame_rate):
             LASER_TOPIC,
             LaserScan,
             callback,
-            [decider, announcer, count, newest_pos, point_export],
+            [decider, announcer, count, newest_pos, point_export,wp_helper],
         )
         rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
     rospy.spin()

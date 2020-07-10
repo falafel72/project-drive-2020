@@ -191,7 +191,6 @@ class PIDController:
         # approximate the time that TA should be on with the time to travel the
         # linear distance of moved_dist with maximum speed.
         self.approx_ta_time = moved_dist / self.max_speed * TA_DURATION_CONST
-        print("approx_time status", self.current_wps, moved_dist, self.approx_ta_time)
         # move the variable on x-axis according to the positioning of the origin
         # waypoint and destination waypoint of the trajectory
         if self.wps[self.current_wps[1]][0] > self.wps[self.current_wps[0]][0]:
@@ -241,7 +240,7 @@ class PIDController:
             dist (bool, optional): True if check by distance, False if check by 
             passing the line. Defaults to False.\\
         """
-        if not dist:
+        if dist:
             dist = math.sqrt(
                 (self.wps[self.current_wps[1]][0] - cur_pose[0]) ** 2
                 + (self.wps[self.current_wps[1]][1] - cur_pose[1]) ** 2
@@ -268,10 +267,9 @@ class PIDController:
                 )
                 self.last_cross = cross_product[2]
             if self.sign_changed:
+                print(self.current_wps)
                 self.skip_one_cross_flag = True
                 self.sign_changed = False
-                print(self.wps[self.current_wps[0]], self.wps[self.current_wps[1]])
-                # print("pose",pose_vector,"line",line_vector)
                 self.current_wps[0] = self.current_wps[1]
                 self.current_wps[1] = (self.current_wps[1] + 1) % len(self.wps)
                 self.upon_change_wp()
