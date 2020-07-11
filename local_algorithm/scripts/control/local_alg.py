@@ -263,11 +263,11 @@ class local_alg:
         else:
             if(self.obstacle_count > 0):
                 self.obstacle_count -= 1
-        if(self.obstacle_count > 3):
+        if(self.obstacle_count > 2):
             print(total)
             self.laser_on = True
             self.speeds = self.speeds_obstacle
-            self.next_thresh += 2
+            self.next_thresh += 2.1
             print('Switched to obstacle mode')
 
 
