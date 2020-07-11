@@ -7,7 +7,7 @@ def distance_score(distances, exp, threshold):
     # Very high cost if distance under a set threshold,
     # and a polynomially decaying cost otherwise
     mask = np.less(distances, threshold)
-    return np.power(distances, exp) * (1 - mask) + 1000 * mask
+    return np.power(distances, exp) * (1 - mask) + 100000 * mask
 
 
 def length_weight(num_steps, exp):

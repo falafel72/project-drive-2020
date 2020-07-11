@@ -45,6 +45,14 @@ class local_alg:
             self.waypoint_weights = np.asarray(configs["waypoint_weights"])
             self.num_waypoints = configs["num_waypoints"]
             self.waypoint_mult = np.asarray(configs["waypoint_multipliers"])
+            self.laser_on = False
+            self.obstacle_thresh = configs['obstacle_thresh']
+            self.obstacle_count = 0
+            self.speeds_obstacle = np.asarray(configs['speeds_obstacle'])
+            dir_name = path.abspath(__file__)
+            for i in range(3):
+                dir_name = path.dirname(dir_name)
+            self.map_array = np.loadtxt(path.join(dir_name, configs['map_txt']))
             # The distance at which to switch to the next waypoint
             # May also include distance switching
             self.next_thresh = np.asarray(configs["thresholds"])
@@ -128,6 +136,26 @@ class local_alg:
         point = np.flip(point, axis=1)
         return point
 
+    def transform_to_png(self, points, position):
+        points = np.copy(points)
+        points = np.flip(points, axis=1)
+        # Rotate counter-clockwise by angle of position[2]
+        rotation_matrix = np.zeros((2,2))
+        rotation_matrix[0, 0] = math.cos(position[2])
+        rotation_matrix[0, 1] = -math.sin(position[2])
+        rotation_matrix[1, 0] = -rotation_matrix[0, 1]
+        rotation_matrix[1, 1] = rotation_matrix[0, 0]
+        points = rotation_matrix.dot(points.T).T
+        # Translate by the car position
+        points[:,0] += position[0]
+        points[:,1] += position[1]
+        # Translate by the map origin
+        points[:,0] -= self.map_orig[0]
+        points[:,1] -= self.map_orig[1]
+        # Scale by map resolution
+        points /= self.resolution
+        return points.astype('int')
+
     def decide_direction(self, points, position):
         # Predict the paths
         num_candidates = len(self.candidate_rs)
@@ -187,26 +215,27 @@ class local_alg:
                         * self.waypoint_weights[waypoint_indices[k]]
                         * self.waypoint_mult[k]
                     )
-        # Currently, the laser scans are not considered at all
-        # when running in waypoint mode. This is temporary.
-        for i in range(num_candidates):
-            # Each path
-            for k in range(self.num_steps):
-                # Each point in the path
-                costs[i] += (
-                    sum(
-                        distance_score(
-                            np.sqrt(
-                                np.square(points[:, 0] - self.paths[i, k, 0])
-                                + np.square(points[:, 1] - self.paths[i, k, 1])
-                            ),
-                            self.dis_exp,
-                            self.dis_threshold,
+        if(self.laser_on):
+            # Currently, the laser scans are not considered at all
+            # when running in waypoint mode. This is temporary.
+            for i in range(num_candidates):
+                # Each path
+                for k in range(self.num_steps):
+                    # Each point in the path
+                    costs[i] += (
+                        sum(
+                            distance_score(
+                                np.sqrt(
+                                    np.square(points[:, 0] - self.paths[i, k, 0])
+                                    + np.square(points[:, 1] - self.paths[i, k, 1])
+                                ),
+                                self.dis_exp,
+                                self.dis_threshold,
+                            )
                         )
+                        * self.length_weights[k]
+                        * 15
                     )
-                    * self.length_weights[k]
-                    * 0.1
-                )
         # Add current steering angle to simulator
         self.simulator.steer_angle = self.angles[np.argmin(costs)]
         # Return the relative waypoint for visualization.
@@ -219,6 +248,27 @@ class local_alg:
             cur_waypoints,
             self.paths
         ]
+
+    def check_obstacle(self, points, position):
+        points = self.transform_to_png(points, position)
+        np.savetxt('mapped_points.txt', points)
+        total = 0
+        for i in range(points.shape[0]):
+            try:
+                total += self.map_array[points[i,0],points[i,1]]
+            except:
+                continue
+        if(total > self.obstacle_thresh):
+            self.obstacle_count += 1
+        else:
+            if(self.obstacle_count > 0):
+                self.obstacle_count -= 1
+        if(self.obstacle_count > 2):
+            print(total)
+            self.laser_on = True
+            self.speeds = self.speeds_obstacle
+            self.next_thresh += 2.1
+            print('Switched to obstacle mode')
 
 
 if __name__ == "__main__":

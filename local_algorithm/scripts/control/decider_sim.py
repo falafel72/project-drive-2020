@@ -8,7 +8,6 @@ import sys
 import time
 from parser import laser_parser
 
-import click
 import numpy as np
 import rospy
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -55,7 +54,7 @@ CONFIG_FILE = os.path.join(
 MAP_TOPIC = "/map"
 PATH_TOPIC = "/green_path"
 # These are set via command line
-FRAME_RATE = 10
+FRAME_RATE = 30
 CONTROL_TOPIC = "/drive"
 LASER_TOPIC = "/scan"
 ODOM_TOPIC = "/odom"
@@ -69,6 +68,7 @@ indices = []
 predicted_paths = []
 count = 0
 newest_pos = np.zeros(3)
+newest_index = [0]
 
 # Turning rate in #adjustment/steering
 STEER_SPEED = 0.01
@@ -91,9 +91,22 @@ listener = None
 
 def callback(data, IO):
     IO[2] += 1
-    # if not IO[2] % 10 == 0:
-    #    return
+    cur_time = time.time()
+    cur_secs = int(cur_time)
+    if((not data.header.stamp.secs == cur_secs) or
+        ((cur_time - cur_secs) * 1000000000
+        - data.header.stamp.nsecs > 10000000)):
+        if(IO[0].laser_on and IO[2] % 5 == 0):
+            message = AckermannDriveStamped()
+            message.header.stamp = rospy.Time.now()
+            message.header.frame_id = "No visualization"
+            message.drive.steering_angle = IO[0].angles[IO[5][0]]
+            message.drive.speed = IO[0].speeds[IO[5][0]]
+            IO[1].publish(message)
+        return
     cur_points = laser_parser(data)
+    if((not IO[0].laser_on) and (IO[2]%10==0)):
+        IO[0].check_obstacle(cur_points, IO[3])
     # index is the index of the best path
     # tmp is the waypoint visualization
     # this is not used here
@@ -104,11 +117,16 @@ def callback(data, IO):
     #    steer_angle -= STEER_SPEED
     # else:
     #    steer_angle = angle
+    IO[5][0] = index
     message = AckermannDriveStamped()
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "No visualization"
-    message.drive.steering_angle = angle * 1.5
-    message.drive.speed = configs["speeds"][index]
+    message.drive.steering_angle = angle
+    target_speed = IO[0].speeds[index]
+    actual_speed = IO[0].simulator.velocity
+    if(target_speed < actual_speed - 0.2):
+        target_speed = actual_speed - 0.2
+    message.drive.speed = target_speed
     IO[1].publish(message)
     publish_points(IO[0].paths[index, :, :], IO[4])
 
@@ -166,11 +184,29 @@ def callback_vis(data, IO):
         Saves the laser scan and waypoints
     """
     IO[2] += 1
+    cur_time = time.time()
+    cur_secs = int(cur_time)
+    if((not data.header.stamp.secs == cur_secs) or
+        ((cur_time - cur_secs) * 1000000000
+        - data.header.stamp.nsecs > 10000000)):
+        if(IO[0].laser_on):
+            message = AckermannDriveStamped()
+            message.header.stamp = rospy.Time.now()
+            message.header.frame_id = "No visualization"
+            message.drive.steering_angle = IO[0].angles[IO[5][0]]
+            message.drive.speed = IO[0].speeds[IO[5][0]]
+            IO[1].publish(message)
+        return
     cur_points = laser_parser(data)
+    if((not IO[0].laser_on) and (IO[2]%10==0)):
+        scan_callback(data)
+        IO[0].check_obstacle(cur_points, IO[3])
+    #time_1 = time.time()
     # index is the index of the best path
     [angle, index, cur_costs, waypoints, paths] = IO[0].decide_direction(
         cur_points, IO[3]
     )
+    IO[5][0] = index
     # Save the laser scan points for visualization
     # if not IO[2] % 10 == 0:
     #    return
@@ -183,9 +219,11 @@ def callback_vis(data, IO):
     message.header.stamp = rospy.Time.now()
     message.header.frame_id = "Visualized"
     message.drive.steering_angle = angle
-    message.drive.speed = configs["speeds"][index]
+    message.drive.speed = IO[0].speeds[index]
     IO[1].publish(message)
     publish_points(IO[0].paths[index, :, :], IO[4])
+    #time_2 = time.time()
+    #print(time_2 - time_1)
 
 
 """
@@ -318,6 +356,10 @@ def output_video():
 
 
 def save_odom(data, IO):
+    cur_time = time.time()
+    cur_secs = int(cur_time)
+    if((cur_time-cur_secs)*1000000000 - data.header.stamp.nsecs > 7000000):
+        return
     newest_pos = IO[0]
     decider = IO[1]
     prev_pos = np.copy(newest_pos)
@@ -374,7 +416,7 @@ def scan_callback(data):
 
 def odom_tf_callback(data):
     """ Simple callback to get tf of the base_link of car. Update the global
-        variable car_translation and car_rotation as the car moves 
+        variable car_translation and car_rotation as the car moves
 
     Args:
         data (nav_msgs.msg.Odometry): odometry of the car
@@ -434,7 +476,7 @@ def cost_handle(visualize, opponent, frame_rate):
             LASER_TOPIC,
             LaserScan,
             callback_vis,
-            [decider, announcer, visualize, newest_pos, point_export],
+            [decider, announcer, visualize, newest_pos, point_export, newest_index],
         )
         # Subscribe to the odom topic and save the newest position
         # whenever one is published
@@ -446,7 +488,7 @@ def cost_handle(visualize, opponent, frame_rate):
             LASER_TOPIC,
             LaserScan,
             callback,
-            [decider, announcer, count, newest_pos, point_export],
+            [decider, announcer, count, newest_pos, point_export, newest_index],
         )
         rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
     rospy.spin()
@@ -459,11 +501,6 @@ def cost_handle(visualize, opponent, frame_rate):
 """
 
 
-@click.command()
-@click.option("--visualize", is_flag=True)
-@click.option("--opponent", is_flag=True)
-@click.option("--frame_rate", default=10)
-@click.option("--pid", is_flag=True)
 def handle(visualize, opponent, frame_rate, pid):
     global listener
     rospy.init_node("local_algorithm", anonymous=True)
@@ -502,7 +539,7 @@ def handle(visualize, opponent, frame_rate, pid):
             LASER_TOPIC,
             LaserScan,
             callback_vis,
-            [decider, announcer, visualize, newest_pos, point_export],
+            [decider, announcer, visualize, newest_pos, point_export, newest_index],
         )
         # Subscribe to the odom topic and save the newest position
         # whenever one is published
@@ -522,7 +559,7 @@ def handle(visualize, opponent, frame_rate, pid):
             LASER_TOPIC,
             LaserScan,
             callback,
-            [decider, announcer, count, newest_pos, point_export],
+            [decider, announcer, count, newest_pos, point_export, newest_index],
         )
         rospy.Subscriber(ODOM_TOPIC, Odometry, save_odom, [newest_pos, decider])
     rospy.spin()
@@ -532,4 +569,5 @@ def handle(visualize, opponent, frame_rate, pid):
 
 if __name__ == "__main__":
     time.sleep(1)
-    handle()
+    #handle()
+    cost_handle(False, False, 30)
