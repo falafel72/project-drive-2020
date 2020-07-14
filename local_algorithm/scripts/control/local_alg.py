@@ -49,6 +49,9 @@ class local_alg:
             self.obstacle_thresh = configs['obstacle_thresh']
             self.obstacle_count = 0
             self.speeds_obstacle = np.asarray(configs['speeds_obstacle'])
+            self.speeds_tight = np.asarray(configs['speeds_tight'])
+            self.radius_tight = configs['radius_tight']
+            self.predict_paths = True
             dir_name = path.abspath(__file__)
             for i in range(3):
                 dir_name = path.dirname(dir_name)
@@ -69,14 +72,7 @@ class local_alg:
         else:
             self.navi_mode = False
         # Translate the radius into steering angles
-        self.angles = []
-        for i in range(len(self.candidate_rs)):
-            if not self.candidate_rs[i] == 0:
-                angle = math.asin(self.wheel_base / 2 / self.candidate_rs[i])
-            else:
-                angle = 0
-            self.angles.append(angle)
-        self.angles = np.asarray(self.angles)
+        self.generate_angles()
         # Initiate the simulator
         self.simulator = car_state()
         # Gets the importance array, which gives importance based on
@@ -84,6 +80,14 @@ class local_alg:
         self.length_weights = length_weight(self.num_steps, self.length_exp)
         print(self.length_weights)
         print(sum(self.length_weights))
+
+    def generate_angles(self):
+        self.angles = np.zeros(len(self.candidate_rs))
+        for i in range(len(self.candidate_rs)):
+            if not self.candidate_rs[i] == 0:
+                self.angles[i] = math.asin(self.wheel_base / 2 / self.candidate_rs[i])
+            else:
+                self.angles[i] = 0
 
     def generate_paths(self):
         # Generates an array of points.
@@ -159,11 +163,15 @@ class local_alg:
     def decide_direction(self, points, position):
         # Predict the paths
         num_candidates = len(self.candidate_rs)
-        self.paths = self.simulator.predict_state(self.angles, self.speeds)
-        for i in range(num_candidates):
-            self.paths[i,:,:] = self.transform_to_local(self.paths[i,:,:], position)
-        # Points is the list of obstacle points
+        #time_1 = time.time()
         costs = np.zeros(num_candidates)
+        if(self.predict_paths):
+            self.paths, costs = self.simulator.predict_state(self.angles, self.speeds)
+            for i in range(num_candidates):
+                self.paths[i,:,:] = self.transform_to_local(self.paths[i,:,:], position)
+        #time_2 = time.time()
+        #print(time_2 - time_1)
+        # Points is the list of obstacle points
         if self.sim_flag:
             tmp_points = np.zeros(points.shape)
             k = 0
@@ -196,6 +204,34 @@ class local_alg:
                 relative_waypoint = self.transform_to_local(
                     cur_waypoint, position
                 )
+                ## Conduct switching between predict and no-predict
+                #if(self.cur_waypoint == 12):
+                #    self.predict_paths = False
+                #    self.generate_paths()
+                #    print('No predict')
+                #if(self.cur_waypoint == 17):
+                #    self.predict_paths = True
+                #    print('Predict')
+                # Conduct switching between high speed
+                # and tight corners
+                if(self.cur_waypoint == 23):
+                    self.wheel_base = 1.0
+                    tmp = self.speeds
+                    self.speeds = self.speeds_tight
+                    self.speeds_tight = tmp
+                    tmp = self.candidate_rs
+                    self.candidate_rs = self.radius_tight
+                    self.radius_tight = tmp
+                    self.generate_angles()
+                if(self.cur_waypoint == 32):
+                    self.wheel_base = 0.3
+                    tmp = self.speeds_tight
+                    self.speeds_tight = self.speeds
+                    self.speeds = tmp
+                    tmp = self.radius_tight
+                    self.radius_tight = self.candidate_rs
+                    self.candidate_rs = tmp
+                    self.generate_angles()
             # Gather multiple waypoints
             cur_waypoints = np.zeros((self.num_waypoints,2))
             waypoint_indices = []
